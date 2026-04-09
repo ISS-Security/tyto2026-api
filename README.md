@@ -1,30 +1,37 @@
 # Tyto API
 
-API to manage courses, events, locations, and attendance tracking
+API to manage courses, events, locations, and attendance tracking.
 
 ## Routes
 
-All routes return Json
+All routes return JSON.
 
-- GET `/`: Root route shows if Web API is running
-- GET `api/v1/courses/`: returns all course IDs
-- GET `api/v1/courses/[ID]`: returns details about a single course with given ID
-- POST `api/v1/courses/`: creates a new course
+- GET  `/`: Root route shows if Web API is running
+- GET  `api/v1/courses`: Get list of all courses
+- POST `api/v1/courses`: Create a new course
+- GET  `api/v1/courses/[course_id]`: Get a single course
+- GET  `api/v1/courses/[course_id]/events`: Get list of events for a course
+- POST `api/v1/courses/[course_id]/events`: Create a new event for a course
+- GET  `api/v1/courses/[course_id]/events/[event_id]`: Get a single event
+- GET  `api/v1/courses/[course_id]/locations`: Get list of locations for a course
+- POST `api/v1/courses/[course_id]/locations`: Create a new location for a course
+- GET  `api/v1/courses/[course_id]/locations/[location_id]`: Get a single location
 
 ## Install
 
-Install this API by cloning the *relevant branch* and installing required gems from `Gemfile.lock`:
+Install this API by cloning the *relevant branch* and use bundler to install
+specified gems from `Gemfile.lock`:
 
 ```shell
 bundle install
 ```
 
-## Test
+Copy `config/secrets-example.yml` to `config/secrets.yml` and adjust as needed.
 
-Run the test script:
+Setup development database once:
 
 ```shell
-ruby spec/api_spec.rb
+rake db:migrate
 ```
 
 ## Execute
@@ -33,4 +40,27 @@ Run this API using:
 
 ```shell
 puma
+```
+
+## Test
+
+Setup test database once:
+
+```shell
+RACK_ENV=test rake db:migrate
+```
+
+Run the test specification:
+
+```shell
+rake spec
+```
+
+## Release check
+
+Before submitting pull requests, please check if specs, style, and dependency
+audits pass:
+
+```shell
+rake release_check
 ```

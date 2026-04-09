@@ -71,7 +71,7 @@ From a threat-model standpoint, this branch is where the following risks from th
 ### Domain scope (this branch only)
 
 - `Course` — `name`, `description`. No `owner_id` yet; ownership is deferred.
-- `Location` — `course_id`, `name`, `address`, `longitude`, `latitude`. `address` is stored in plaintext for now; encryption at rest is deferred.
+- `Location` — `course_id`, `name`, `longitude`, `latitude`. Matches the full Tyto schema exactly; no `address` column.
 - `Event` — `course_id`, `location_id`, `name`, `start_at`, `end_at`. `location_id` is nullable (not every event needs a physical location), `course_id` is `null: false`.
 
 ## Questions
@@ -80,10 +80,10 @@ From a threat-model standpoint, this branch is where the following risks from th
 
 - [x] ~~Q1. What SQLite gem version should we pin?~~ — **`~>2.0`.** Ruby 4.0.1 / modern bundler needs the `2.x` line. Note it in the post-review notes.
 - [x] ~~Q2. Do we introduce `Event` and `Location` now, or just `Course`?~~ — **All three.** The whole point of this branch is to lay the schema for later features, and events/locations are the minimum viable set. Doing it in one branch avoids re-migrating twice in two weeks.
-- [x] ~~Q3. Should `Location.address` be encrypted in this branch?~~ — **No, deferred per project rules.** Test this branch with plaintext `address`; we are not deploying to production yet.
+- [x] ~~Q3. Should `Location` carry an `address` column?~~ — **No.** Full Tyto's `locations` table has only `name`, `latitude`, `longitude`. Dropped `address` to stay faithful to the source schema; `2-db-hardening` will encrypt location coordinates instead, which also foreshadows the attendance-coordinate encryption in `8-auth-scope`.
 - [x] ~~Q4. Should `Event.location_id` be required?~~ — **No.** Allow `null` so the test fixtures can create events without a location, and so the later "async event" story stays open. The FK constraint is there either way.
 - [x] ~~Q5. Do we introduce `owner_id` on `Course` now to avoid a backfill later?~~ — **No.** There's no `accounts` table to point at — it will be added in later weeks.
-- [x] ~~Q6. `hirb` is kind of old — do we still want it for `rake console`?~~ — **Yes, for now.** Revisit if it breaks on Ruby 4.x.
+- [x] ~~Q6. `hirb` is kind of old — do we still want it for `rake console`?~~ — **No.** Let's update it `table_print`.
 - [x] ~~Q7. YAML-load `Time` for `event_seeds.yml`?~~ — **Use `YAML.safe_load_file(..., permitted_classes: [Time])`.** Explicit allowlist is the safe-by-default pattern; never fall back to `YAML.load`.
 - [x] ~~Q8. What JSON envelope shape should we use?~~ — **`{ data: { type, attributes }, included }`.** Matches what the future `tyto2026-app` will expect and gives us a clean "resource / relationships" story without pulling in a heavy serializer gem.
 - [x] ~~Q9. Should `rake spec` depend on `rake db:migrate` for the test DB?~~ — **No.** Keep them separate so a broken migration fails loudly on its own and doesn't get swallowed by the spec task. Document the `RACK_ENV=test rake db:migrate` one-time setup in the README.
@@ -184,7 +184,7 @@ These are the things a reviewer should explicitly confirm are in place before th
 ### Schema + seeds
 
 - [x] 11. Migration `001_courses_create.rb` — `name` unique/not null, `description`, timestamps
-- [x] 12. Migration `002_locations_create.rb` — FK `course_id`, `name` not null, plaintext `address`, `Float longitude/latitude`, timestamps, unique `(course_id, name)`
+- [x] 12. Migration `002_locations_create.rb` — FK `course_id`, `name` not null, `Float longitude/latitude`, timestamps, unique `(course_id, name)`
 - [x] 13. Migration `003_events_create.rb` — FK `course_id` not null, FK `location_id` nullable, `name` not null, `start_at/end_at`, timestamps, unique `(course_id, name, start_at)`
 - [x] 14. `db/seeds/course_seeds.yml` (cleaned up from the previous branch)
 - [x] 15. `db/seeds/location_seeds.yml`
@@ -251,7 +251,7 @@ bundle-audit check --update
 
 1. **`sqlite3` pinned to `~>2.0`.** The older `1.x` line can't resolve cleanly on Ruby `4.0.1`.
 2. **`Gemfile.lock` upgraded several transitive gems** (rubocop, sequel, minitest, etc.). Everything is green — `rake release_check` passes — so there's no reason to pin back.
-3. **`Location.address` is plaintext on purpose.** Encryption at rest is deferred per project rules; don't ask for it here.
+3. **`Location` has no `address` column.** Matches full Tyto's schema. `2-db-hardening` will encrypt `longitude`/`latitude` rather than an address string, which lines up with the attendance-coordinate encryption story in `8-auth-scope`.
 4. **`Event.location_id` is nullable** so seeds and tests can create events without tying them to a specific room. Keeps the model honest for async events later.
 5. **`Course` has no `owner_id`** because there are no accounts yet. Backfilling an orphan column now would create migration debt for the account work when it lands.
 6. **`spec/env_spec.rb` is the regression test for the `ENV.delete` contract.** If anyone refactors `config/environments.rb` to read `ENV[...]` directly and forgets the `.delete`, this test flips red. Please do not weaken it to `.wont_equal` or similar.

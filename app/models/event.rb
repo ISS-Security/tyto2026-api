@@ -4,13 +4,10 @@ require 'json'
 require 'sequel'
 
 module Tyto
-  # Models a course
-  class Course < Sequel::Model
-    one_to_many :events
-    one_to_many :locations
-    plugin :association_dependencies,
-           events: :destroy,
-           locations: :destroy
+  # Models a scheduled course event (class session)
+  class Event < Sequel::Model
+    many_to_one :course
+    many_to_one :location
 
     plugin :timestamps
 
@@ -19,12 +16,17 @@ module Tyto
       JSON(
         {
           data: {
-            type: 'course',
+            type: 'event',
             attributes: {
               id:,
               name:,
-              description:
+              start_at:,
+              end_at:
             }
+          },
+          included: {
+            course:,
+            location:
           }
         }, options
       )
