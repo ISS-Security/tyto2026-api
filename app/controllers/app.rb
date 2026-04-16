@@ -8,6 +8,7 @@ module Tyto
   # Web controller for Tyto API
   class Api < Roda
     plugin :halt
+    plugin :unescape_path
 
     route do |routing|
       response['Content-Type'] = 'application/json'
@@ -98,8 +99,10 @@ module Tyto
 
             # GET api/v1/courses/[course_id]
             routing.get do
-              course = Course.first(id: course_id)
-              course ? course.to_json : raise('Course not found')
+              # WARNING: Do not inject URL parameters directly into SQL queries!
+              course = DB["SELECT * FROM courses WHERE id=#{course_id}"].to_a
+
+              course ? JSON.pretty_generate(course) : raise('Course not found')
             rescue StandardError => e
               routing.halt 404, { message: e.message }.to_json
             end

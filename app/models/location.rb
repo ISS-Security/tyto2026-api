@@ -6,6 +6,7 @@ require 'sequel'
 module Tyto
   # Models a location for a course
   class Location < Sequel::Model
+    unrestrict_primary_key
     many_to_one :course
     one_to_many :events
 

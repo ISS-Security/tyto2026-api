@@ -6,6 +6,7 @@ require 'sequel'
 module Tyto
   # Models a scheduled course event (class session)
   class Event < Sequel::Model
+    unrestrict_primary_key
     many_to_one :course
     many_to_one :location
 

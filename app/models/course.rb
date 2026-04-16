@@ -6,6 +6,7 @@ require 'sequel'
 module Tyto
   # Models a course
   class Course < Sequel::Model
+    unrestrict_primary_key
     one_to_many :events
     one_to_many :locations
     plugin :association_dependencies,
