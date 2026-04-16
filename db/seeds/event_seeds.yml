@@ -1,0 +1,7 @@
+---
+- name: Week 1 Lecture
+  start_at: 2026-02-23 10:10:00
+  end_at: 2026-02-23 12:00:00
+- name: Week 2 Lecture
+  start_at: 2026-03-02 10:10:00
+  end_at: 2026-03-02 12:00:00

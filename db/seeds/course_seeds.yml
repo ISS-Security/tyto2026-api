@@ -1,5 +1,5 @@
 ---
-- name: 'CSDS'
-  description: 'Computational Statistics for Data Science'
-- name: 'SEC'
-  description: 'IT Service Security'
+- name: CSDS
+  description: Computational Statistics for Data Science
+- name: SEC
+  description: IT Service Security

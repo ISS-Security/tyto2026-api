@@ -7,6 +7,11 @@ CLAUDE.local.md
 
 # Temp files
 _*
+.bundle
+.irb_history
 
 # Local data store
 db/local/*
+
+# Secrets
+config/secrets.yml
