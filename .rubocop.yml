@@ -2,6 +2,7 @@
 AllCops:
   TargetRubyVersion: 4.0
   NewCops: enable
+  SuggestExtensions: true
   Exclude:
     - _snippets/**/*
 
@@ -14,9 +15,9 @@ plugins:
 Metrics/BlockLength:
   Enabled: true
   Exclude:
-    - app/controllers/*.rb # Roda's nested controllers require large blocks
     - spec/**/* # Minitest's nested test structure requires large blocks
     - Rakefile # Rake namespaces produce large blocks
+    - app/controllers/*.rb # Roda's nested controllers require large blocks
 
 Security/YAMLLoad:
   Enabled: true
@@ -31,5 +32,5 @@ Style/HashSyntax:
 Style/SymbolArray:
   Enabled: true
   Exclude:
-    - Rakefile
+    # - Rakefile
     - db/migrations/*.rb

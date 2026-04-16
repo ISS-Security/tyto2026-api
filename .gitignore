@@ -16,3 +16,7 @@ db/local/*
 
 # Secrets
 config/secrets.yml
+
+# Sideways tooling
+.swcopy
+.swsymlink

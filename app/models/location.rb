@@ -10,6 +10,25 @@ module Tyto
     one_to_many :events
 
     plugin :timestamps
+    plugin :whitelist_security
+    set_allowed_columns :name, :longitude, :latitude
+
+    # Secure getters and setters
+    def longitude
+      SecureDB.decrypt(longitude_secure)
+    end
+
+    def longitude=(plaintext)
+      self.longitude_secure = SecureDB.encrypt(plaintext)
+    end
+
+    def latitude
+      SecureDB.decrypt(latitude_secure)
+    end
+
+    def latitude=(plaintext)
+      self.latitude_secure = SecureDB.encrypt(plaintext)
+    end
 
     # rubocop:disable Metrics/MethodLength
     def to_json(options = {})

@@ -1,7 +1,7 @@
 ---
-- name: SA-203
-  longitude: 120.996839
-  latitude: 24.795461
-- name: TSMC-214
-  longitude: 120.996712
-  latitude: 24.795502
+- name: CTM-201
+  longitude: '120.996839'
+  latitude: '24.795461'
+- name: 台積館-406
+  longitude: '120.996712'
+  latitude: '24.795502'

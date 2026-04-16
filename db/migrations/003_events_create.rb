@@ -5,7 +5,7 @@ require 'sequel'
 Sequel.migration do
   change do
     create_table(:events) do
-      primary_key :id
+      uuid :id, primary_key: true
       foreign_key :course_id, :courses, null: false
       foreign_key :location_id, :locations
 
