@@ -9,8 +9,8 @@ Sequel.migration do
       foreign_key :course_id, :courses
 
       String :name, null: false
-      Float  :longitude
-      Float  :latitude
+      String :longitude_secure
+      String :latitude_secure
 
       DateTime :created_at
       DateTime :updated_at

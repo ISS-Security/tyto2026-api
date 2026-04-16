@@ -9,7 +9,10 @@ module Tyto
     many_to_one :course
     many_to_one :location
 
+    plugin :uuid, field: :id
     plugin :timestamps
+    plugin :whitelist_security
+    set_allowed_columns :name, :start_at, :end_at, :location_id
 
     # rubocop:disable Metrics/MethodLength
     def to_json(options = {})

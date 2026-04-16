@@ -6,7 +6,7 @@ require 'logger'
 
 module Tyto
   # Web controller for Tyto API
-  class Api < Roda
+  class Api < Roda # rubocop:disable Metrics/ClassLength
     plugin :halt
 
     route do |routing|
@@ -46,16 +46,17 @@ module Tyto
                 new_data = JSON.parse(routing.body.read)
                 course = Course.first(id: course_id)
                 new_event = course.add_event(new_data)
+                raise 'Could not save event' unless new_event
 
-                if new_event
-                  response.status = 201
-                  response['Location'] = "#{@event_route}/#{new_event.id}"
-                  { message: 'Event saved', data: new_event }.to_json
-                else
-                  routing.halt 400, 'Could not save event'
-                end
-              rescue StandardError
-                routing.halt 500, { message: 'Database error' }.to_json
+                response.status = 201
+                response['Location'] = "#{@event_route}/#{new_event.id}"
+                { message: 'Event saved', data: new_event }.to_json
+              rescue Sequel::MassAssignmentRestriction
+                Api.logger.warn "MASS-ASSIGNMENT: #{new_data.keys}"
+                routing.halt 400, { message: 'Illegal Attributes' }.to_json
+              rescue StandardError => e
+                Api.logger.error "UNKNOWN ERROR: #{e.message}"
+                routing.halt 500, { message: 'Unknown server error' }.to_json
               end
             end
 
@@ -83,16 +84,17 @@ module Tyto
                 new_data = JSON.parse(routing.body.read)
                 course = Course.first(id: course_id)
                 new_loc = course.add_location(new_data)
+                raise 'Could not save location' unless new_loc
 
-                if new_loc
-                  response.status = 201
-                  response['Location'] = "#{@location_route}/#{new_loc.id}"
-                  { message: 'Location saved', data: new_loc }.to_json
-                else
-                  routing.halt 400, 'Could not save location'
-                end
-              rescue StandardError
-                routing.halt 500, { message: 'Database error' }.to_json
+                response.status = 201
+                response['Location'] = "#{@location_route}/#{new_loc.id}"
+                { message: 'Location saved', data: new_loc }.to_json
+              rescue Sequel::MassAssignmentRestriction
+                Api.logger.warn "MASS-ASSIGNMENT: #{new_data.keys}"
+                routing.halt 400, { message: 'Illegal Attributes' }.to_json
+              rescue StandardError => e
+                Api.logger.error "UNKNOWN ERROR: #{e.message}"
+                routing.halt 500, { message: 'Unknown server error' }.to_json
               end
             end
 
@@ -122,8 +124,12 @@ module Tyto
             response.status = 201
             response['Location'] = "#{@course_route}/#{new_course.id}"
             { message: 'Course saved', data: new_course }.to_json
+          rescue Sequel::MassAssignmentRestriction
+            Api.logger.warn "MASS-ASSIGNMENT: #{new_data.keys}"
+            routing.halt 400, { message: 'Illegal Attributes' }.to_json
           rescue StandardError => e
-            routing.halt 400, { message: e.message }.to_json
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
         end
       end

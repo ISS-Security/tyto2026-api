@@ -22,18 +22,18 @@ Harden the API against common database vulnerabilities and add encryption at res
 
 ## Current State
 
-- [ ] Plan created
-- [ ] Branch created off `main`
-- [ ] Config + autoload
-- [ ] Crypto library (`SecureDB`)
-- [ ] Schema + seeds
-- [ ] Models (whitelist_security, encrypted coords)
-- [ ] Controller (mass assignment handling, logging)
-- [ ] Ops (Rakefile)
-- [ ] Tests restructured + SECURITY tests added
-- [ ] `rake spec` green
-- [ ] `bundle exec rubocop .` clean
-- [ ] `bundle exec bundle-audit check --update` clean
+- [x] Plan created
+- [x] Branch created off `main`
+- [x] Config + autoload
+- [x] Crypto library (`SecureDB`)
+- [x] Schema + seeds
+- [x] Models (whitelist_security, encrypted coords)
+- [x] Controller (mass assignment handling, logging)
+- [x] Ops (Rakefile)
+- [x] Tests restructured + SECURITY tests added
+- [x] `rake spec` green
+- [x] `bundle exec rubocop .` clean
+- [x] `bundle exec bundle-audit check --update` clean
 - [ ] Code review
 - [ ] Retrospective migration audit
 - [ ] Commits squashed to match required count (1)
@@ -115,47 +115,47 @@ Harden the API against common database vulnerabilities and add encryption at res
 
 ### Setup
 
-- [ ] 1. **`.rubocop.yml`** — Comment out blanket exclusions for `Metrics/BlockLength` on controllers and Rakefile (use inline pragmas). Comment out `Style/HashSyntax` exclusion. Verify `Style/SymbolArray` exclusion path. **`.ruby-version`** — Bump `4.0.1` → `4.0.2`. Run `bundle update` to regenerate `Gemfile.lock`.
+- [x] 1. **`.rubocop.yml`** — Comment out blanket exclusions for `Metrics/BlockLength` on controllers and Rakefile (use inline pragmas). Comment out `Style/HashSyntax` exclusion. Verify `Style/SymbolArray` exclusion path. **`.ruby-version`** — Bump `4.0.1` → `4.0.2`. Run `bundle update` to regenerate `Gemfile.lock`.
 
 ### Config + autoload
 
-- [ ] 2. **`require_app.rb`** — Add `config:` keyword argument (default `true`). Update default folders to include `lib`. Regenerate `Gemfile.lock` if needed.
-- [ ] 3. **`app/lib/secure_db.rb`** — New: `SecureDB` class with `generate_key`, `setup`, `encrypt`, `decrypt` using RbNaCl SimpleBox.
-- [ ] 4. **`config/environments.rb`** — Wrap in `configure` block. Add logger, SecureDB setup, `ENV.delete('DB_KEY')`. HTTP logging to `$stdout`, custom to `$stderr`. **`config/secrets-example.yml`** — Add `DB_KEY` entries.
+- [x] 2. **`require_app.rb`** — Add `config:` keyword argument (default `true`). Update default folders to include `lib`. Regenerate `Gemfile.lock` if needed.
+- [x] 3. **`app/lib/secure_db.rb`** — New: `SecureDB` class with `generate_key`, `setup`, `encrypt`, `decrypt` using RbNaCl SimpleBox.
+- [x] 4. **`config/environments.rb`** — Wrap in `configure` block. Add logger, SecureDB setup, `ENV.delete('DB_KEY')`. HTTP logging to `$stdout`, custom to `$stderr`. **`config/secrets-example.yml`** — Add `DB_KEY` entries.
 
 ### Schema + seeds
 
-- [ ] 9. **`db/migrations/002_locations_create.rb`** — Keep integer PK. `longitude_secure`/`latitude_secure` String columns (replacing Float). **`db/migrations/003_events_create.rb`** — UUID PK. `location_id` FK stays integer.
-- [ ] 10. **`db/seeds/location_seeds.yml`** — Keep coord values as strings. Add non-ASCII name for encryption edge-case testing.
+- [x] 9. **`db/migrations/002_locations_create.rb`** — Keep integer PK. `longitude_secure`/`latitude_secure` String columns (replacing Float). **`db/migrations/003_events_create.rb`** — UUID PK. `location_id` FK stays integer.
+- [x] 10. **`db/seeds/location_seeds.yml`** — Keep coord values as strings. Add non-ASCII name for encryption edge-case testing.
 
 ### Models
 
-- [ ] 5. **`app/models/location.rb`** — whitelist_security, encrypted getters/setters for coords, update `to_json`. No UUID (integer PK).
-- [ ] 5b. **`app/models/event.rb`** — UUID plugin (Event IDs are user-facing and gate sensitive data).
-- [ ] 6. **`app/models/course.rb`** — whitelist_security + allowed columns. **`app/models/event.rb`** — whitelist_security + allowed columns.
+- [x] 5. **`app/models/location.rb`** — whitelist_security, encrypted getters/setters for coords, update `to_json`. No UUID (integer PK).
+- [x] 5b. **`app/models/event.rb`** — UUID plugin (Event IDs are user-facing and gate sensitive data).
+- [x] 6. **`app/models/course.rb`** — whitelist_security + allowed columns. **`app/models/event.rb`** — whitelist_security + allowed columns.
 
 ### Controller
 
-- [ ] 7. **`app/controllers/app.rb`** — Mass assignment rescue (`Sequel::MassAssignmentRestriction` → 400), logging, improved error handling on all POST routes.
+- [x] 7. **`app/controllers/app.rb`** — Mass assignment rescue (`Sequel::MassAssignmentRestriction` → 400), logging, improved error handling on all POST routes.
 
 ### Ops
 
-- [ ] 8. **`Rakefile`** — Spec pattern `spec/**/*_spec.rb`. db:load loads config. `newkey:db` namespace. Inline rubocop pragmas.
+- [x] 8. **`Rakefile`** — Spec pattern `spec/**/*_spec.rb`. db:load loads config. `newkey:db` namespace. Inline rubocop pragmas.
 
 ### Tests
 
-- [ ] 11. **Restructure** — `spec/integration/` and `spec/unit/` dirs. Move existing specs.
-- [ ] 12. **Integration specs** — Update require_relative paths. Add SECURITY mass assignment tests to events and locations specs.
-- [ ] 13. **`spec/integration/api_courses_spec.rb`** — Split/restructure from existing. Add SECURITY mass assignment + SQL injection tests.
-- [ ] 14. **Unit specs** — `spec/unit/locations_spec.rb` (data round-trip, encrypted attrs). `spec/unit/events_spec.rb` (data round-trip, UUID non-determinism).
-- [ ] 15. **`spec/unit/secure_db_spec.rb`** — Encrypt, decrypt ASCII, decrypt non-ASCII.
-- [ ] 16. **`spec/env_spec.rb`** — Add `DB_KEY` check.
+- [x] 11. **Restructure** — `spec/integration/` and `spec/unit/` dirs. Move existing specs.
+- [x] 12. **Integration specs** — Update require_relative paths. Add SECURITY mass assignment tests to events and locations specs.
+- [x] 13. **`spec/integration/api_courses_spec.rb`** — Split/restructure from existing. Add SECURITY mass assignment + SQL injection tests.
+- [x] 14. **Unit specs** — `spec/unit/locations_spec.rb` (data round-trip, encrypted attrs). `spec/unit/events_spec.rb` (data round-trip, UUID non-determinism).
+- [x] 15. **`spec/unit/secure_db_spec.rb`** — Encrypt, decrypt ASCII, decrypt non-ASCII.
+- [x] 16. **`spec/env_spec.rb`** — Add `DB_KEY` check.
 
 ### Verify
 
-- [ ] `rake spec` — all tests pass
-- [ ] `bundle exec rubocop .` — clean
-- [ ] `bundle exec bundle-audit check --update` — clean
+- [x] `rake spec` — 26 tests, 55 assertions, 0 failures
+- [x] `bundle exec rubocop .` — 24 files, no offenses
+- [x] `bundle exec bundle-audit check --update` — no vulnerabilities
 - [ ] Code review
 - [ ] Retrospective migration audit
 - [ ] Squash / split into required commit count
