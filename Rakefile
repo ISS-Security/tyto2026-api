@@ -3,7 +3,7 @@
 require 'rake/testtask'
 require './require_app'
 
-task default: :spec
+task :default => :spec
 
 desc 'Tests API specs only'
 task :api_spec do
@@ -12,7 +12,7 @@ end
 
 desc 'Test all the specs'
 Rake::TestTask.new(:spec) do |t|
-  t.pattern = 'spec/*_spec.rb'
+  t.pattern = 'spec/**/*_spec.rb'
   t.warning = false
 end
 
@@ -42,7 +42,7 @@ end
 
 namespace :db do
   task :load do # rubocop:disable Rake/Desc
-    require_app(nil) # load nothing by default
+    require_app(['config'])
     require 'sequel'
 
     Sequel.extension :migration
@@ -50,7 +50,7 @@ namespace :db do
   end
 
   task :load_models do # rubocop:disable Rake/Desc
-    require_app('models')
+    require_app(%w[config models])
   end
 
   desc 'Run migrations'
@@ -76,5 +76,13 @@ namespace :db do
     db_filename = "db/local/#{Tyto::Api.environment}.db"
     FileUtils.rm(db_filename)
     puts "Deleted #{db_filename}"
+  end
+end
+
+namespace :newkey do
+  desc 'Create sample cryptographic key for database'
+  task :db do
+    require_app('lib', config: false)
+    puts "DB_KEY: #{Tyto::SecureDB.generate_key}"
   end
 end
