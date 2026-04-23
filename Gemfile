@@ -21,6 +21,7 @@ gem 'sequel', '~>5.55'
 gem 'table_print', '~>1.0' # Console / REPL formatting (dev only)
 
 group :development, :test do
+  gem 'sequel-seed', '~>1.1'
   gem 'sqlite3', '~>2.0'
 end
 

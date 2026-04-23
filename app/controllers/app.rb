@@ -8,6 +8,7 @@ module Tyto
   # Web controller for Tyto API
   class Api < Roda # rubocop:disable Metrics/ClassLength
     plugin :halt
+    plugin :all_verbs
 
     route do |routing|
       response['Content-Type'] = 'application/json'
@@ -18,6 +19,37 @@ module Tyto
 
       @api_root = 'api/v1'
       routing.on @api_root do
+        routing.on 'accounts' do
+          @account_route = "#{@api_root}/accounts"
+
+          routing.on String do |username|
+            # GET api/v1/accounts/[username]
+            routing.get do
+              account = Account.first(username:)
+              account ? account.to_json : raise('Account not found')
+            rescue StandardError => e
+              routing.halt 404, { message: e.message }.to_json
+            end
+          end
+
+          # POST api/v1/accounts
+          routing.post do
+            new_data = JSON.parse(routing.body.read)
+            new_account = Account.new(new_data)
+            raise('Could not save account') unless new_account.save_changes
+
+            response.status = 201
+            response['Location'] = "#{@account_route}/#{new_account.id}"
+            { message: 'Account saved', data: new_account }.to_json
+          rescue Sequel::MassAssignmentRestriction
+            Api.logger.warn "MASS-ASSIGNMENT: #{new_data.keys}"
+            routing.halt 400, { message: 'Illegal Attributes' }.to_json
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
+          end
+        end
+
         routing.on 'courses' do
           @course_route = "#{@api_root}/courses"
 
@@ -44,8 +76,9 @@ module Tyto
               # POST api/v1/courses/[course_id]/events
               routing.post do
                 new_data = JSON.parse(routing.body.read)
-                course = Course.first(id: course_id)
-                new_event = course.add_event(new_data)
+                new_event = CreateEventForCourse.call(
+                  course_id:, event_data: new_data
+                )
                 raise 'Could not save event' unless new_event
 
                 response.status = 201
@@ -82,13 +115,69 @@ module Tyto
               # POST api/v1/courses/[course_id]/locations
               routing.post do
                 new_data = JSON.parse(routing.body.read)
-                course = Course.first(id: course_id)
-                new_loc = course.add_location(new_data)
+                new_loc = CreateLocationForCourse.call(
+                  course_id:, location_data: new_data
+                )
                 raise 'Could not save location' unless new_loc
 
                 response.status = 201
                 response['Location'] = "#{@location_route}/#{new_loc.id}"
                 { message: 'Location saved', data: new_loc }.to_json
+              rescue Sequel::MassAssignmentRestriction
+                Api.logger.warn "MASS-ASSIGNMENT: #{new_data.keys}"
+                routing.halt 400, { message: 'Illegal Attributes' }.to_json
+              rescue StandardError => e
+                Api.logger.error "UNKNOWN ERROR: #{e.message}"
+                routing.halt 500, { message: 'Unknown server error' }.to_json
+              end
+            end
+
+            routing.on 'enrollments' do
+              @enrollment_route = "#{@api_root}/courses/#{course_id}/enrollments"
+
+              # DELETE api/v1/courses/[course_id]/enrollments/[enrollment_id]
+              routing.on String do |enrollment_id|
+                routing.delete do
+                  enrollment = Enrollment.first(id: enrollment_id)
+                  unless enrollment && enrollment.course_id.to_s == course_id.to_s
+                    routing.halt 404, { message: 'Enrollment not found' }.to_json
+                  end
+
+                  enrollment.destroy
+                  { message: 'Enrollment removed' }.to_json
+                rescue StandardError => e
+                  Api.logger.error "UNKNOWN ERROR: #{e.message}"
+                  routing.halt 500, { message: 'Unknown server error' }.to_json
+                end
+              end
+
+              # GET api/v1/courses/[course_id]/enrollments
+              routing.get do
+                output = { data: Course.first(id: course_id).enrollments }
+                JSON.pretty_generate(output)
+              rescue StandardError
+                routing.halt 404, { message: 'Could not find enrollments' }.to_json
+              end
+
+              # POST api/v1/courses/[course_id]/enrollments
+              routing.post do
+                new_data = JSON.parse(routing.body.read)
+                account = Account.first(username: new_data['username'])
+                routing.halt(404, { message: 'Account not found' }.to_json) unless account
+
+                enrollment = EnrollAccountInCourse.call(
+                  account_id: account.id, course_id:,
+                  role_name: new_data['role_name']
+                )
+                raise 'Could not save enrollment' unless enrollment
+
+                response.status = 201
+                response['Location'] = "#{@enrollment_route}/#{enrollment.id}"
+                { message: 'Enrollment created', data: enrollment }.to_json
+              rescue Tyto::EnrollAccountInCourse::UnknownRoleError
+                routing.halt 400, { message: 'Unknown role' }.to_json
+              rescue Sequel::UniqueConstraintViolation
+                routing.halt 409, { message: 'Enrollment already exists' }.to_json
               rescue Sequel::MassAssignmentRestriction
                 Api.logger.warn "MASS-ASSIGNMENT: #{new_data.keys}"
                 routing.halt 400, { message: 'Illegal Attributes' }.to_json

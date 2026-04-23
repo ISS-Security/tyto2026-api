@@ -1,0 +1,45 @@
+---
+# Owners (one per course; created via CreateCourseForOwner)
+- username: soumya.ray
+  course_name: Service Oriented Architecture
+  role_name: owner
+- username: soumya.ray
+  course_name: IT Service Security
+  role_name: owner
+- username: soumya.ray
+  course_name: Computational Statistics
+  role_name: owner
+- username: galit
+  course_name: Data Mining
+  role_name: owner
+
+# TA (staff role)
+- username: jerry.ho
+  course_name: IT Service Security
+  role_name: staff
+
+# Students
+- username: li.wei
+  course_name: Service Oriented Architecture
+  role_name: student
+- username: li.wei
+  course_name: IT Service Security
+  role_name: student
+- username: chen.hsinyi
+  course_name: IT Service Security
+  role_name: student
+- username: chen.hsinyi
+  course_name: Data Mining
+  role_name: student
+- username: wang.ting
+  course_name: Computational Statistics
+  role_name: student
+- username: lin.chiahao
+  course_name: Service Oriented Architecture
+  role_name: student
+- username: huang.peijun
+  course_name: Data Mining
+  role_name: student
+- username: tsai.yuting
+  course_name: Computational Statistics
+  role_name: student
