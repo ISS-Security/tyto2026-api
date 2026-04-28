@@ -50,7 +50,7 @@ namespace :db do
   end
 
   task :load_models do # rubocop:disable Rake/Desc
-    require_app(%w[config models])
+    require_app(%w[config models services])
   end
 
   desc 'Run migrations'
@@ -63,6 +63,7 @@ namespace :db do
   task delete: :load_models do
     Tyto::Event.dataset.destroy
     Tyto::Location.dataset.destroy
+    Tyto::Account.dataset.destroy
     Tyto::Course.dataset.destroy
   end
 
@@ -77,12 +78,36 @@ namespace :db do
     FileUtils.rm(db_filename)
     puts "Deleted #{db_filename}"
   end
+
+  task reset_seeds: :load_models do # rubocop:disable Rake/Desc
+    db = Tyto::Api.DB
+    db[:schema_seeds].delete if db.tables.include?(:schema_seeds)
+    Tyto::Account.dataset.destroy
+    Tyto::Course.dataset.destroy
+  end
+
+  desc 'Seeds the development database'
+  task seed: :load_models do
+    require 'sequel/extensions/seed'
+    Sequel::Seed.setup(:development)
+    Sequel.extension :seed
+    Sequel::Seeder.apply(Tyto::Api.DB, 'db/seeds')
+  end
 end
+
+desc 'Delete all data and reseed'
+task reseed: %i[db:reset_seeds db:seed]
 
 namespace :newkey do
   desc 'Create sample cryptographic key for database'
   task :db do
     require_app('lib', config: false)
     puts "DB_KEY: #{Tyto::SecureDB.generate_key}"
+  end
+
+  desc 'Create sample cryptographic key for HMAC lookup hashing'
+  task :hash do
+    require_app('lib', config: false)
+    puts "HASH_KEY: #{Tyto::SecureDB.generate_key}"
   end
 end

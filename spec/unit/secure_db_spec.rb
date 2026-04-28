@@ -22,4 +22,18 @@ describe 'Test Tyto::SecureDB Class' do
     test_decrypted = Tyto::SecureDB.decrypt(text_sec)
     _(test_decrypted).must_equal test_data
   end
+
+  it 'SECURITY: should produce deterministic keyed hashes for same input' do
+    test_data = 'alice@example.com'
+    first_hash = Tyto::SecureDB.hash(test_data)
+    second_hash = Tyto::SecureDB.hash(test_data)
+    _(first_hash).must_equal second_hash
+    _(first_hash).wont_equal test_data
+  end
+
+  it 'SECURITY: should produce different keyed hashes for different inputs' do
+    alice_hash = Tyto::SecureDB.hash('alice@example.com')
+    bob_hash = Tyto::SecureDB.hash('bob@example.com')
+    _(alice_hash).wont_equal bob_hash
+  end
 end

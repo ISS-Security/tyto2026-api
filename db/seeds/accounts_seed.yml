@@ -1,0 +1,30 @@
+---
+# Staff / faculty
+- username: soumya.ray
+  email: soumya.ray@nthu.edu.tw
+  password: change_me_soumya
+- username: jerry.ho
+  email: jerry.ho@nthu.edu.tw
+  password: change_me_jerry
+- username: galit
+  email: galit@nthu.edu.tw
+  password: change_me_galit
+# Students
+- username: li.wei
+  email: li.wei@nthu.edu.tw
+  password: student_pass_1
+- username: chen.hsinyi
+  email: chen.hsinyi@nthu.edu.tw
+  password: student_pass_2
+- username: wang.ting
+  email: wang.ting@nthu.edu.tw
+  password: student_pass_3
+- username: lin.chiahao
+  email: lin.chiahao@nthu.edu.tw
+  password: student_pass_4
+- username: huang.peijun
+  email: huang.peijun@nthu.edu.tw
+  password: student_pass_5
+- username: tsai.yuting
+  email: tsai.yuting@nthu.edu.tw
+  password: student_pass_6

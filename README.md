@@ -7,6 +7,8 @@ API to manage courses, events, locations, and attendance tracking.
 All routes return JSON.
 
 - GET  `/`: Root route shows if Web API is running
+- GET  `api/v1/accounts/[username]`: Get a single account
+- POST `api/v1/accounts`: Create a new account
 - GET  `api/v1/courses`: Get list of all courses
 - POST `api/v1/courses`: Create a new course
 - GET  `api/v1/courses/[course_id]`: Get a single course
@@ -32,6 +34,15 @@ Setup development database once:
 
 ```shell
 rake db:migrate
+```
+
+Optionally populate the development database with sample accounts, courses,
+enrollments, locations, and events:
+
+```shell
+rake db:seed
+# or, to wipe and reseed from scratch:
+rake reseed
 ```
 
 ## Execute
@@ -64,3 +75,9 @@ audits pass:
 ```shell
 rake release_check
 ```
+
+## For Contributors
+
+- **Database schema** — see [`docs/schema.md`](docs/schema.md) for the
+  entity-relationship diagram and the rationale behind encrypted columns,
+  keyed-hash lookup, role enumeration, and cascade behavior.

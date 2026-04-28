@@ -8,8 +8,16 @@ describe 'Test Event Handling' do
   before do
     wipe_database
 
+    %w[admin creator member owner instructor staff student].each do |role_name|
+      Tyto::Role.find_or_create(name: role_name)
+    end
+
+    @owner = Tyto::Account.create(DATA[:accounts][0])
+    @owner.add_system_role(Tyto::Role.first(name: 'creator'))
     DATA[:courses].each do |course_data|
-      Tyto::Course.create(course_data)
+      Tyto::CreateCourseForOwner.call(
+        current_account_id: @owner.id, owner_id: @owner.id, course_data:
+      )
     end
   end
 
@@ -54,8 +62,9 @@ describe 'Test Event Handling' do
     end
 
     it 'HAPPY: should be able to create new events' do
+      payload = @event_data.merge('current_account_id' => @owner.id)
       post "api/v1/courses/#{@course.id}/events",
-           @event_data.to_json, @req_header
+           payload.to_json, @req_header
       _(last_response.status).must_equal 201
       _(last_response.headers['Location'].size).must_be :>, 0
 
@@ -66,14 +75,34 @@ describe 'Test Event Handling' do
       _(created['name']).must_equal @event_data['name']
     end
 
-    it 'SECURITY: should not create events with mass assignment' do
-      bad_data = @event_data.clone
-      bad_data['created_at'] = '1900-01-01'
+    it 'SECURITY: should silently drop unknown attributes from request body' do
+      bad_data = @event_data.merge(
+        'current_account_id' => @owner.id, 'created_at' => '1900-01-01'
+      )
       post "api/v1/courses/#{@course.id}/events",
            bad_data.to_json, @req_header
 
-      _(last_response.status).must_equal 400
-      _(last_response.headers['Location']).must_be_nil
+      _(last_response.status).must_equal 201
+      event = Tyto::Event.first
+      # Route-level whitelist filtered 'created_at' before the model saw it.
+      _(event.created_at.year).wont_equal 1900
+    end
+
+    it 'SECURITY: missing current_account_id returns 401' do
+      post "api/v1/courses/#{@course.id}/events",
+           @event_data.to_json, @req_header
+
+      _(last_response.status).must_equal 401
+    end
+
+    it 'SECURITY: non-teaching current_account_id returns 403' do
+      outsider = Tyto::Account.create(DATA[:accounts][1])
+      payload = @event_data.merge('current_account_id' => outsider.id)
+
+      post "api/v1/courses/#{@course.id}/events",
+           payload.to_json, @req_header
+
+      _(last_response.status).must_equal 403
     end
   end
 end

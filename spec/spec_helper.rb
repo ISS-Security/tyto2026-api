@@ -8,10 +8,12 @@ require 'yaml'
 
 require_relative 'test_load_all'
 
+TABLES_TO_WIPE = %i[
+  events locations enrollments accounts_roles accounts courses
+].freeze
+
 def wipe_database
-  app.DB[:events].delete
-  app.DB[:locations].delete
-  app.DB[:courses].delete
+  TABLES_TO_WIPE.each { |table| app.DB[table].delete }
 end
 
 DATA = {} # rubocop:disable Style/MutableConstant
@@ -21,3 +23,5 @@ DATA[:events] = YAML.safe_load_file(
   'db/seeds/event_seeds.yml',
   permitted_classes: [Time]
 )
+DATA[:accounts] = YAML.safe_load_file('db/seeds/accounts_seed.yml')
+DATA[:enrollments] = YAML.safe_load_file('db/seeds/enrollments_seed.yml')
