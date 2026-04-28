@@ -8,14 +8,15 @@ describe 'Test Enrollment Handling' do
   before do
     wipe_database
 
-    %w[owner instructor staff student].each do |role_name|
+    %w[admin creator member owner instructor staff student].each do |role_name|
       Tyto::Role.find_or_create(name: role_name)
     end
 
-    @owner   = Tyto::Account.create(DATA[:accounts][0])
+    @owner = Tyto::Account.create(DATA[:accounts][0])
+    @owner.add_system_role(Tyto::Role.first(name: 'creator'))
     @student = Tyto::Account.create(DATA[:accounts][1])
-    @course  = Tyto::CreateCourseForOwner.call(
-      owner_id: @owner.id, course_data: DATA[:courses][0]
+    @course = Tyto::CreateCourseForOwner.call(
+      current_account_id: @owner.id, owner_id: @owner.id, course_data: DATA[:courses][0]
     )
     @req_header = { 'CONTENT_TYPE' => 'application/json' }
   end
@@ -23,7 +24,8 @@ describe 'Test Enrollment Handling' do
   describe 'Listing enrollments' do
     it 'HAPPY: should list enrollments for a course' do
       Tyto::EnrollAccountInCourse.call(
-        account_id: @student.id, course_id: @course.id, role_name: 'student'
+        current_account_id: @owner.id, target_account_id: @student.id,
+        course_id: @course.id, role_name: 'student'
       )
 
       get "api/v1/courses/#{@course.id}/enrollments"
@@ -37,8 +39,8 @@ describe 'Test Enrollment Handling' do
   describe 'Creating enrollments' do
     it 'HAPPY: should create a student enrollment' do
       post(
-        "api/v1/courses/#{@course.id}/enrollments",
-        { username: @student.username, role_name: 'student' }.to_json,
+        "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
+        { current_account_id: @owner.id, role_name: 'student' }.to_json,
         @req_header
       )
       _(last_response.status).must_equal 201
@@ -49,8 +51,8 @@ describe 'Test Enrollment Handling' do
 
     it 'SAD: should 404 on unknown username' do
       post(
-        "api/v1/courses/#{@course.id}/enrollments",
-        { username: 'nosuchuser', role_name: 'student' }.to_json,
+        "api/v1/courses/#{@course.id}/enrollments/nosuchuser",
+        { current_account_id: @owner.id, role_name: 'student' }.to_json,
         @req_header
       )
       _(last_response.status).must_equal 404
@@ -58,8 +60,8 @@ describe 'Test Enrollment Handling' do
 
     it 'SAD: should 400 on unknown role_name' do
       post(
-        "api/v1/courses/#{@course.id}/enrollments",
-        { username: @student.username, role_name: 'supreme_leader' }.to_json,
+        "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
+        { current_account_id: @owner.id, role_name: 'supreme_leader' }.to_json,
         @req_header
       )
       _(last_response.status).must_equal 400
@@ -67,22 +69,42 @@ describe 'Test Enrollment Handling' do
 
     it 'SAD: should 409 on duplicate (account, course, role) triple' do
       Tyto::EnrollAccountInCourse.call(
-        account_id: @student.id, course_id: @course.id, role_name: 'student'
+        current_account_id: @owner.id, target_account_id: @student.id,
+        course_id: @course.id, role_name: 'student'
       )
 
       post(
-        "api/v1/courses/#{@course.id}/enrollments",
-        { username: @student.username, role_name: 'student' }.to_json,
+        "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
+        { current_account_id: @owner.id, role_name: 'student' }.to_json,
         @req_header
       )
       _(last_response.status).must_equal 409
+    end
+
+    it 'SECURITY: missing current_account_id returns 401' do
+      post(
+        "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
+        { role_name: 'student' }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 401
+    end
+
+    it 'SECURITY: non-teaching current_account_id returns 403' do
+      post(
+        "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
+        { current_account_id: @student.id, role_name: 'student' }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 403
     end
   end
 
   describe 'Deleting enrollments' do
     before do
       @enrollment = Tyto::EnrollAccountInCourse.call(
-        account_id: @student.id, course_id: @course.id, role_name: 'student'
+        current_account_id: @owner.id, target_account_id: @student.id,
+        course_id: @course.id, role_name: 'student'
       )
     end
 
@@ -95,6 +117,7 @@ describe 'Test Enrollment Handling' do
 
     it 'SAD: should 404 when enrollment_id belongs to a different course' do
       other_course = Tyto::CreateCourseForOwner.call(
+        current_account_id: @owner.id,
         owner_id: @owner.id, course_data: DATA[:courses][1]
       )
 

@@ -65,8 +65,9 @@ def create_owned_courses
     .each do |row|
       account = Tyto::Account.first(username: row['username'])
       course_data = COURSES_INFO.find { |c| c['name'] == row['course_name'] }
+      # Acting as themselves: each owner-to-be has system role 'creator'.
       Tyto::CreateCourseForOwner.call(
-        owner_id: account.id, course_data:
+        current_account_id: account.id, owner_id: account.id, course_data:
       )
     end
 end
@@ -78,10 +79,12 @@ def create_non_owner_enrollments
 end
 
 def enroll_row(row)
-  account = Tyto::Account.first(username: row['username'])
-  course  = Tyto::Course.first(name: row['course_name'])
+  target = Tyto::Account.first(username: row['username'])
+  course = Tyto::Course.first(name: row['course_name'])
   Tyto::EnrollAccountInCourse.call(
-    account_id: account.id, course_id: course.id, role_name: row['role_name']
+    current_account_id: course.owner.id,
+    target_account_id: target.id,
+    course_id: course.id, role_name: row['role_name']
   )
 end
 
@@ -90,6 +93,7 @@ def create_locations
   LOCATIONS_INFO.each do |location_data|
     course = courses_cycle.next
     Tyto::CreateLocationForCourse.call(
+      current_account_id: course.owner.id,
       course_id: course.id, location_data:
     )
   end
@@ -100,6 +104,7 @@ def create_events
   EVENTS_INFO.each do |event_data|
     course = courses_cycle.next
     Tyto::CreateEventForCourse.call(
+      current_account_id: course.owner.id,
       course_id: course.id, event_data:
     )
   end
