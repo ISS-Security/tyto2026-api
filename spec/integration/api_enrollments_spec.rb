@@ -28,11 +28,25 @@ describe 'Test Enrollment Handling' do
         course_id: @course.id, role_name: 'student'
       )
 
-      get "api/v1/courses/#{@course.id}/enrollments"
+      get "api/v1/courses/#{@course.id}/enrollments?current_account_id=#{@owner.id}"
       _(last_response.status).must_equal 200
 
       result = JSON.parse(last_response.body)
       _(result['data'].count).must_equal 2
+      _(result['data'].first['type']).must_equal 'enrollment'
+      _(result['data'].first['attributes']['role']).wont_be_nil
+      _(result['data'].first['include']['account']['username']).wont_be_nil
+    end
+
+    it 'SECURITY: enrollments list returns 401 when current_account_id missing' do
+      get "api/v1/courses/#{@course.id}/enrollments"
+      _(last_response.status).must_equal 401
+    end
+
+    it 'SECURITY: enrollments list returns 404 when current_account_id is not enrolled' do
+      outsider = Tyto::Account.create(DATA[:accounts][2])
+      get "api/v1/courses/#{@course.id}/enrollments?current_account_id=#{outsider.id}"
+      _(last_response.status).must_equal 404
     end
   end
 
@@ -109,7 +123,11 @@ describe 'Test Enrollment Handling' do
     end
 
     it 'HAPPY: should remove an enrollment' do
-      delete "api/v1/courses/#{@course.id}/enrollments/#{@enrollment.id}"
+      delete(
+        "api/v1/courses/#{@course.id}/enrollments/#{@enrollment.id}",
+        { current_account_id: @owner.id }.to_json,
+        @req_header
+      )
       _(last_response.status).must_equal 200
       _(Tyto::Enrollment.first(id: @enrollment.id)).must_be_nil
       _(@course.reload.students).wont_include @student
@@ -121,14 +139,37 @@ describe 'Test Enrollment Handling' do
         owner_id: @owner.id, course_data: DATA[:courses][1]
       )
 
-      delete "api/v1/courses/#{other_course.id}/enrollments/#{@enrollment.id}"
+      delete(
+        "api/v1/courses/#{other_course.id}/enrollments/#{@enrollment.id}",
+        { current_account_id: @owner.id }.to_json,
+        @req_header
+      )
       _(last_response.status).must_equal 404
       _(Tyto::Enrollment.first(id: @enrollment.id)).wont_be_nil
     end
 
     it 'SAD: should 404 for nonexistent enrollment_id' do
-      delete "api/v1/courses/#{@course.id}/enrollments/999999"
+      delete(
+        "api/v1/courses/#{@course.id}/enrollments/999999",
+        { current_account_id: @owner.id }.to_json,
+        @req_header
+      )
       _(last_response.status).must_equal 404
+    end
+
+    it 'SECURITY: delete returns 401 when current_account_id missing' do
+      delete "api/v1/courses/#{@course.id}/enrollments/#{@enrollment.id}"
+      _(last_response.status).must_equal 401
+    end
+
+    it 'SECURITY: delete returns 403 when current_account_id is not teaching staff' do
+      delete(
+        "api/v1/courses/#{@course.id}/enrollments/#{@enrollment.id}",
+        { current_account_id: @student.id }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 403
+      _(Tyto::Enrollment.first(id: @enrollment.id)).wont_be_nil
     end
   end
 

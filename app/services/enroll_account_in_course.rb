@@ -14,9 +14,8 @@ module Tyto
       current_role = Enrollment
                      .where(account_id: current_account_id, course_id:).all
                      .map { |e| e.role&.name }
-      unless current_role.intersect?(Role::TEACHING)
-        raise NotAuthorizedError, 'Only teaching staff can manage enrollments'
-      end
+      raise NotAuthorizedError, 'Only teaching staff can manage enrollments' unless
+        current_role.intersect?(Role::TEACHING)
 
       role = Role.first(name: role_name) or raise(UnknownRoleError, role_name)
       Enrollment.create(

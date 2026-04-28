@@ -28,22 +28,18 @@ module Tyto
     def staff       = accounts_in_role('staff')
     def students    = accounts_in_role('student')
 
-    # rubocop:disable Metrics/MethodLength
     def to_json(options = {})
       JSON(
         {
-          data: {
-            type: 'course',
-            attributes: {
-              id:,
-              name:,
-              description:
-            }
+          type: 'course',
+          attributes: {
+            id:,
+            name:,
+            description:
           }
         }, options
       )
     end
-    # rubocop:enable Metrics/MethodLength
 
     private
 
