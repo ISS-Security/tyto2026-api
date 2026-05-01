@@ -48,15 +48,25 @@ module Tyto
       enrollments_dataset.where(role_id: owner_role.id).map(&:course)
     end
 
+    # rubocop:disable Metrics/MethodLength
     def to_json(options = {})
       JSON(
         {
           type: 'account',
-          id:,
-          username:,
-          email:
+          attributes: {
+            id:,
+            username:,
+            email:
+          },
+          include: {
+            system_roles: system_roles.map(&:name),
+            enrollments: enrollments.map do |e|
+              { course_id: e.course_id, course_name: e.course.name, role: e.role.name }
+            end
+          }
         }, options
       )
     end
+    # rubocop:enable Metrics/MethodLength
   end
 end

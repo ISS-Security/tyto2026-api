@@ -20,26 +20,26 @@ gem 'rbnacl', '~>7.1'
 gem 'sequel', '~>5.55'
 gem 'table_print', '~>1.0' # Console / REPL formatting (dev only)
 
+# Debugging
+gem 'pry'
+
 group :development, :test do
+  gem 'rack-test'
   gem 'sequel-seed', '~>1.1'
   gem 'sqlite3', '~>2.0'
 end
 
-# Performance
-gem 'rubocop-performance'
-
-# Testing
 group :test do
   gem 'minitest'
   gem 'minitest-rg'
-  gem 'rack-test'
 end
 
-# Development
-gem 'bundler-audit'
-gem 'pry'
-gem 'rerun'
-gem 'rubocop'
-gem 'rubocop-minitest'
-gem 'rubocop-rake'
-gem 'rubocop-sequel'
+group :development do
+  gem 'bundler-audit'
+  gem 'rerun'
+  gem 'rubocop'
+  gem 'rubocop-minitest'
+  gem 'rubocop-performance'
+  gem 'rubocop-rake'
+  gem 'rubocop-sequel'
+end
