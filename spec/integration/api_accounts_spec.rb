@@ -33,9 +33,10 @@ describe 'Test Account Handling' do
       _(attrs['email_hash']).must_be_nil
 
       _(result['include']['enrollments']).must_equal []
+      _(result['include']['system_roles']).must_equal []
     end
 
-    it 'HAPPY: should embed enrollments in account details' do
+    it 'HAPPY: should embed system roles and enrollments in account details' do
       %w[admin creator member owner instructor staff student].each do |role_name|
         Tyto::Role.find_or_create(name: role_name)
       end
@@ -49,7 +50,10 @@ describe 'Test Account Handling' do
       get "/api/v1/accounts/#{owner.username}?current_account_id=#{owner.id}"
       _(last_response.status).must_equal 200
 
-      enrollments = JSON.parse(last_response.body)['include']['enrollments']
+      include_block = JSON.parse(last_response.body)['include']
+      _(include_block['system_roles']).must_equal ['creator']
+
+      enrollments = include_block['enrollments']
       _(enrollments.size).must_equal 1
       _(enrollments.first['course_id']).must_equal course.id
       _(enrollments.first['course_name']).must_equal course.name
@@ -73,6 +77,20 @@ describe 'Test Account Handling' do
       requester = Tyto::Account.create(DATA[:accounts][1])
       get "/api/v1/accounts/#{target.username}?current_account_id=#{requester.id}"
       _(last_response.status).must_equal 404
+    end
+
+    it 'HAPPY: admin should be able to view any account' do
+      %w[admin].each { |r| Tyto::Role.find_or_create(name: r) }
+
+      target = Tyto::Account.create(DATA[:accounts][0])
+      admin = Tyto::Account.create(DATA[:accounts][1])
+      admin.add_system_role(Tyto::Role.first(name: 'admin'))
+
+      get "/api/v1/accounts/#{target.username}?current_account_id=#{admin.id}"
+      _(last_response.status).must_equal 200
+
+      result = JSON.parse(last_response.body)
+      _(result['attributes']['username']).must_equal target.username
     end
   end
 
@@ -103,6 +121,133 @@ describe 'Test Account Handling' do
 
       _(last_response.status).must_equal 400
       _(last_response.headers['Location']).must_be_nil
+    end
+  end
+
+  describe 'Managing System Roles' do
+    before do
+      %w[admin creator member owner instructor staff student].each do |role_name|
+        Tyto::Role.find_or_create(name: role_name)
+      end
+
+      @admin = Tyto::Account.create(DATA[:accounts][0])
+      @admin.add_system_role(Tyto::Role.first(name: 'admin'))
+      @target = Tyto::Account.create(DATA[:accounts][1])
+    end
+
+    it 'HAPPY: admin should promote a member to creator' do
+      put(
+        "/api/v1/accounts/#{@target.username}/system_roles/creator",
+        { current_account_id: @admin.id }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 201
+      _(@target.reload.system_roles.map(&:name)).must_include 'creator'
+    end
+
+    it 'HAPPY: re-PUT of an already-assigned role is idempotent (200)' do
+      @target.add_system_role(Tyto::Role.first(name: 'creator'))
+
+      put(
+        "/api/v1/accounts/#{@target.username}/system_roles/creator",
+        { current_account_id: @admin.id }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 200
+      _(@target.reload.system_roles.count { |r| r.name == 'creator' }).must_equal 1
+    end
+
+    it 'HAPPY: admin should revoke a system role' do
+      @target.add_system_role(Tyto::Role.first(name: 'creator'))
+
+      delete(
+        "/api/v1/accounts/#{@target.username}/system_roles/creator",
+        { current_account_id: @admin.id }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 200
+      _(@target.reload.system_roles.map(&:name)).wont_include 'creator'
+    end
+
+    it 'BAD: non-admin (creator) should not be able to PUT a system role' do
+      caller_account = Tyto::Account.create(DATA[:accounts][2])
+      caller_account.add_system_role(Tyto::Role.first(name: 'creator'))
+
+      put(
+        "/api/v1/accounts/#{@target.username}/system_roles/creator",
+        { current_account_id: caller_account.id }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 403
+      _(@target.reload.system_roles).must_be_empty
+    end
+
+    it 'BAD: non-admin (member) should not be able to DELETE a system role' do
+      @target.add_system_role(Tyto::Role.first(name: 'creator'))
+      caller_account = Tyto::Account.create(DATA[:accounts][2])
+
+      delete(
+        "/api/v1/accounts/#{@target.username}/system_roles/creator",
+        { current_account_id: caller_account.id }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 403
+      _(@target.reload.system_roles.map(&:name)).must_include 'creator'
+    end
+
+    it 'BAD: course-only role rejected on PUT' do
+      put(
+        "/api/v1/accounts/#{@target.username}/system_roles/student",
+        { current_account_id: @admin.id }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 400
+      _(@target.reload.system_roles).must_be_empty
+    end
+
+    it 'BAD: nonsense role rejected on PUT' do
+      put(
+        "/api/v1/accounts/#{@target.username}/system_roles/wizard",
+        { current_account_id: @admin.id }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 400
+    end
+
+    it 'BAD: unknown target username returns 404' do
+      put(
+        '/api/v1/accounts/nosuchuser/system_roles/creator',
+        { current_account_id: @admin.id }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 404
+    end
+
+    it 'BAD: DELETE of an unassigned role returns 404' do
+      delete(
+        "/api/v1/accounts/#{@target.username}/system_roles/creator",
+        { current_account_id: @admin.id }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 404
+    end
+
+    it 'SECURITY: missing current_account_id returns 401 on PUT' do
+      put(
+        "/api/v1/accounts/#{@target.username}/system_roles/creator",
+        {}.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 401
+    end
+
+    it 'SECURITY: missing current_account_id returns 401 on DELETE' do
+      delete(
+        "/api/v1/accounts/#{@target.username}/system_roles/creator",
+        {}.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 401
     end
   end
 end

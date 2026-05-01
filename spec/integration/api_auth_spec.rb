@@ -23,6 +23,7 @@ describe 'Test Authentication' do
     _(result['attributes']['username']).must_equal @account_data['username']
     _(result['attributes']['email']).must_equal @account_data['email']
     _(result['include']['enrollments']).must_be_kind_of Array
+    _(result['include']['system_roles']).must_be_kind_of Array
   end
 
   it 'BAD: should reject invalid password and log to stdout (no stderr)' do

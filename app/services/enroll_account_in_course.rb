@@ -17,6 +17,8 @@ module Tyto
       raise NotAuthorizedError, 'Only teaching staff can manage enrollments' unless
         current_role.intersect?(Role::TEACHING)
 
+      raise UnknownRoleError, role_name unless Role::COURSE.include?(role_name)
+
       role = Role.first(name: role_name) or raise(UnknownRoleError, role_name)
       Enrollment.create(
         account_id: target_account_id,

@@ -222,15 +222,22 @@ module Tyto
 
       # POST api/v1/courses
       routing.post do
-        new_data = HttpRequest.new(routing).body_data
-        new_course = Course.new(new_data)
-        raise('Could not save course') unless new_course.save_changes
+        body = HttpRequest.new(routing).body_data
+        current_account_id = body[:current_account_id]
+        routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
+
+        course_data = body.slice(:name, :description)
+        new_course = CreateCourseForOwner.call(
+          current_account_id:, owner_id: current_account_id, course_data:
+        )
 
         response.status = 201
         response['Location'] = "#{@course_route}/#{new_course.id}"
         { message: 'Course saved', data: new_course }.to_json
+      rescue Tyto::CreateCourseForOwner::NotAuthorizedError => e
+        routing.halt 403, { message: e.message }.to_json
       rescue Sequel::MassAssignmentRestriction
-        Api.logger.warn "MASS-ASSIGNMENT: #{new_data.keys}"
+        Api.logger.warn "MASS-ASSIGNMENT: #{body.keys}"
         routing.halt 400, { message: 'Illegal Attributes' }.to_json
       rescue StandardError => e
         Api.logger.error "UNKNOWN ERROR: #{e.message}"

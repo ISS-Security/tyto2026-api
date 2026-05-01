@@ -89,12 +89,19 @@ describe 'Test Course Handling' do
 
   describe 'Creating New Courses' do
     before do
+      %w[admin creator member owner instructor staff student].each do |role_name|
+        Tyto::Role.find_or_create(name: role_name)
+      end
+
       @req_header = { 'CONTENT_TYPE' => 'application/json' }
       @course_data = DATA[:courses][1]
+      @creator = Tyto::Account.create(DATA[:accounts][0])
+      @creator.add_system_role(Tyto::Role.first(name: 'creator'))
     end
 
-    it 'HAPPY: should be able to create new courses' do
-      post 'api/v1/courses', @course_data.to_json, @req_header
+    it 'HAPPY: should be able to create new courses and enroll the creator as owner' do
+      body = @course_data.merge(current_account_id: @creator.id)
+      post 'api/v1/courses', body.to_json, @req_header
       _(last_response.status).must_equal 201
       _(last_response.headers['Location'].size).must_be :>, 0
 
@@ -104,15 +111,56 @@ describe 'Test Course Handling' do
       _(created['id']).must_equal course.id
       _(created['name']).must_equal @course_data['name']
       _(created['description']).must_equal @course_data['description']
+
+      enrollments = course.enrollments
+      _(enrollments.size).must_equal 1
+      _(enrollments.first.account_id).must_equal @creator.id
+      _(enrollments.first.role.name).must_equal 'owner'
     end
 
-    it 'SECURITY: should not create course with mass assignment' do
-      bad_data = @course_data.clone
-      bad_data['created_at'] = '1900-01-01'
+    it 'HAPPY: admin without creator role should also be able to create courses' do
+      admin = Tyto::Account.create(DATA[:accounts][2])
+      admin.add_system_role(Tyto::Role.first(name: 'admin'))
+      body = @course_data.merge(current_account_id: admin.id)
+      post 'api/v1/courses', body.to_json, @req_header
+
+      _(last_response.status).must_equal 201
+      course = Tyto::Course.first
+      _(course.enrollments.first.account_id).must_equal admin.id
+    end
+
+    it 'SECURITY: should silently strip mass-assignment attempts at the route boundary' do
+      bad_data = @course_data.merge('created_at' => '1900-01-01', current_account_id: @creator.id)
       post 'api/v1/courses', bad_data.to_json, @req_header
 
-      _(last_response.status).must_equal 400
-      _(last_response.headers['Location']).must_be_nil
+      _(last_response.status).must_equal 201
+      course = Tyto::Course.first
+      _(course.created_at).must_be :>, Time.now - 60
+    end
+
+    it 'SECURITY: should reject creation without current_account_id' do
+      post 'api/v1/courses', @course_data.to_json, @req_header
+      _(last_response.status).must_equal 401
+      _(Tyto::Course.count).must_equal 0
+    end
+
+    it 'SECURITY: account with no system roles should be denied' do
+      member = Tyto::Account.create(DATA[:accounts][1])
+      body = @course_data.merge(current_account_id: member.id)
+      post 'api/v1/courses', body.to_json, @req_header
+
+      _(last_response.status).must_equal 403
+      _(Tyto::Course.count).must_equal 0
+    end
+
+    it 'SECURITY: member-only account should be denied' do
+      member = Tyto::Account.create(DATA[:accounts][1])
+      member.add_system_role(Tyto::Role.first(name: 'member'))
+      body = @course_data.merge(current_account_id: member.id)
+      post 'api/v1/courses', body.to_json, @req_header
+
+      _(last_response.status).must_equal 403
+      _(Tyto::Course.count).must_equal 0
     end
   end
 end

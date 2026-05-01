@@ -13,6 +13,8 @@ module Tyto
     # role logic moves into Policy objects in 7-policies.
     TEACHING = %w[owner instructor staff].freeze
     COURSE_CREATORS = %w[creator admin].freeze
+    SYSTEM = %w[admin creator member].freeze
+    COURSE = %w[owner instructor staff student].freeze
 
     many_to_many :accounts, join_table: :accounts_roles
     one_to_many :enrollments

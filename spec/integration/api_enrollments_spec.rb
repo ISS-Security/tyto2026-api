@@ -81,6 +81,16 @@ describe 'Test Enrollment Handling' do
       _(last_response.status).must_equal 400
     end
 
+    it 'BAD: should 400 when smuggling a system role into a course enrollment' do
+      post(
+        "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
+        { current_account_id: @owner.id, role_name: 'admin' }.to_json,
+        @req_header
+      )
+      _(last_response.status).must_equal 400
+      _(Tyto::Enrollment.where(account_id: @student.id, course_id: @course.id).count).must_equal 0
+    end
+
     it 'SAD: should 409 on duplicate (account, course, role) triple' do
       Tyto::EnrollAccountInCourse.call(
         current_account_id: @owner.id, target_account_id: @student.id,

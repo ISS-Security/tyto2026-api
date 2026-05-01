@@ -59,6 +59,7 @@ module Tyto
             email:
           },
           include: {
+            system_roles: system_roles.map(&:name),
             enrollments: enrollments.map do |e|
               { course_id: e.course_id, course_name: e.course.name, role: e.role.name }
             end
