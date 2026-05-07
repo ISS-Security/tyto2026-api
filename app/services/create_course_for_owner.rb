@@ -11,7 +11,6 @@ module Tyto
 
     # NOTE: role-checking belongs in a Policy object (see branch 7-policies).
     # It lives here for now to demonstrate the smell that motivates extracting it.
-    # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
     def self.call(current_account_id:, owner_id:, course_data:)
       Tyto::Api.DB.transaction do
         current_account = Account.first(id: current_account_id) or raise UnknownCurrentAccountError
@@ -21,11 +20,9 @@ module Tyto
 
         owner = Account.first(id: owner_id) or raise UnknownOwnerError
         course = Course.create(course_data)
-        Enrollment.create(account_id: owner.id, course_id: course.id,
-                          role_id: Role.first(name: 'owner')&.id)
+        course.add_enrollment(account_id: owner.id, role_id: Role.id_for('owner'))
         course
       end
     end
-    # rubocop:enable Metrics/MethodLength, Metrics/AbcSize
   end
 end

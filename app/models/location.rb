@@ -34,16 +34,14 @@ module Tyto
     def to_json(options = {})
       JSON(
         {
-          data: {
-            type: 'location',
-            attributes: {
-              id:,
-              name:,
-              longitude:,
-              latitude:
-            }
+          type: 'location',
+          attributes: {
+            id:,
+            name:,
+            longitude:,
+            latitude:
           },
-          included: {
+          include: {
             course:
           }
         }, options

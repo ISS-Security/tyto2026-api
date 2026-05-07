@@ -40,6 +40,13 @@ task console: :print_env do
   sh 'pry -r ./spec/test_load_all'
 end
 
+namespace :run do
+  desc 'Run API in development mode'
+  task :dev do
+    sh 'puma -p 3000'
+  end
+end
+
 namespace :db do
   task :load do # rubocop:disable Rake/Desc
     require_app(['config'])
@@ -63,6 +70,7 @@ namespace :db do
   task delete: :load_models do
     Tyto::Event.dataset.destroy
     Tyto::Location.dataset.destroy
+    Tyto::Enrollment.dataset.destroy
     Tyto::Account.dataset.destroy
     Tyto::Course.dataset.destroy
   end
@@ -82,6 +90,10 @@ namespace :db do
   task reset_seeds: :load_models do # rubocop:disable Rake/Desc
     db = Tyto::Api.DB
     db[:schema_seeds].delete if db.tables.include?(:schema_seeds)
+    Tyto::Event.dataset.destroy
+    Tyto::Location.dataset.destroy
+    Tyto::Enrollment.dataset.destroy
+    db[:accounts_roles].delete
     Tyto::Account.dataset.destroy
     Tyto::Course.dataset.destroy
   end

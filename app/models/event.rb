@@ -18,16 +18,14 @@ module Tyto
     def to_json(options = {})
       JSON(
         {
-          data: {
-            type: 'event',
-            attributes: {
-              id:,
-              name:,
-              start_at:,
-              end_at:
-            }
+          type: 'event',
+          attributes: {
+            id:,
+            name:,
+            start_at:,
+            end_at:
           },
-          included: {
+          include: {
             course:,
             location:
           }

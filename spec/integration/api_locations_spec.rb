@@ -27,11 +27,12 @@ describe 'Test Location Handling' do
       course.add_location(loc)
     end
 
-    get "api/v1/courses/#{course.id}/locations"
+    get "api/v1/courses/#{course.id}/locations?current_account_id=#{@owner.id}"
     _(last_response.status).must_equal 200
 
     result = JSON.parse last_response.body
     _(result['data'].count).must_equal 2
+    _(result['data'].first['type']).must_equal 'location'
   end
 
   it 'HAPPY: should be able to get details of a single location' do
@@ -39,18 +40,33 @@ describe 'Test Location Handling' do
     course = Tyto::Course.first
     loc = course.add_location(loc_data)
 
-    get "/api/v1/courses/#{course.id}/locations/#{loc.id}"
+    get "/api/v1/courses/#{course.id}/locations/#{loc.id}?current_account_id=#{@owner.id}"
     _(last_response.status).must_equal 200
 
     result = JSON.parse last_response.body
-    _(result['data']['attributes']['id']).must_equal loc.id
-    _(result['data']['attributes']['name']).must_equal loc_data['name']
+    _(result['type']).must_equal 'location'
+    _(result['attributes']['id']).must_equal loc.id
+    _(result['attributes']['name']).must_equal loc_data['name']
+    _(result['include']).wont_be_nil
   end
 
   it 'SAD: should return error if unknown location requested' do
     course = Tyto::Course.first
-    get "/api/v1/courses/#{course.id}/locations/foobar"
+    get "/api/v1/courses/#{course.id}/locations/foobar?current_account_id=#{@owner.id}"
 
+    _(last_response.status).must_equal 404
+  end
+
+  it 'SECURITY: locations list returns 401 when current_account_id missing' do
+    course = Tyto::Course.first
+    get "api/v1/courses/#{course.id}/locations"
+    _(last_response.status).must_equal 401
+  end
+
+  it 'SECURITY: locations list returns 404 when current_account_id is not enrolled' do
+    course = Tyto::Course.first
+    outsider = Tyto::Account.create(DATA[:accounts][1])
+    get "api/v1/courses/#{course.id}/locations?current_account_id=#{outsider.id}"
     _(last_response.status).must_equal 404
   end
 
@@ -68,7 +84,7 @@ describe 'Test Location Handling' do
       _(last_response.status).must_equal 201
       _(last_response.headers['Location'].size).must_be :>, 0
 
-      created = JSON.parse(last_response.body)['data']['data']['attributes']
+      created = JSON.parse(last_response.body)['data']['attributes']
       loc = Tyto::Location.first
 
       _(created['id']).must_equal loc.id

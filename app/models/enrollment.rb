@@ -15,15 +15,23 @@ module Tyto
 
     plugin :timestamps, update_on_create: true
 
+    # rubocop:disable Metrics/MethodLength
     def to_json(options = {})
       JSON(
         {
-          id:,
-          account_id:,
-          course_id:,
-          role: role.name
+          type: 'enrollment',
+          attributes: {
+            id:,
+            account_id:,
+            course_id:,
+            role: role.name
+          },
+          include: {
+            account: { username: account.username }
+          }
         }, options
       )
     end
+    # rubocop:enable Metrics/MethodLength
   end
 end

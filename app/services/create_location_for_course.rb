@@ -11,9 +11,8 @@ module Tyto
       current_role = Enrollment
                      .where(account_id: current_account_id, course_id:).all
                      .map { |e| e.role&.name }
-      unless current_role.intersect?(Role::TEACHING)
-        raise NotAuthorizedError, 'Only teaching staff can create locations'
-      end
+      raise NotAuthorizedError, 'Only teaching staff can create locations' unless
+        current_role.intersect?(Role::TEACHING)
 
       Course.first(id: course_id).add_location(location_data)
     end
