@@ -105,6 +105,52 @@ namespace :db do
     Sequel.extension :seed
     Sequel::Seeder.apply(Tyto::Api.DB, 'db/seeds')
   end
+
+  desc 'Bootstrap an admin: ensure roles, create-or-find USERNAME, grant admin+creator'
+  task bootstrap_admin: :load_models do
+    require 'io/console'
+
+    username = ENV.fetch('USERNAME', nil).to_s.strip
+    email = ENV.fetch('EMAIL', nil).to_s.strip
+    abort 'USERNAME=<username> required' if username.empty?
+
+    # 1. Ensure the static roles reference table is populated.
+    role_names = %w[admin creator member owner instructor staff student]
+    role_names.each { |name| Tyto::Role.find_or_create(name:) }
+    puts "Roles ensured: #{role_names.join(', ')}"
+
+    # 2. Create-or-find the account.
+    account = Tyto::Account.first(username:)
+    if account.nil?
+      abort 'EMAIL=<email> required when creating a new account' if email.empty?
+      password =
+        if $stdin.tty?
+          print 'Password (input hidden): '
+          pw = $stdin.noecho(&:gets).to_s.chomp
+          puts ''
+          pw
+        else
+          warn '(no TTY -- reading password from stdin without echo masking)'
+          $stdin.gets.to_s.chomp
+        end
+      abort 'Password must be at least 8 characters' if password.length < 8
+
+      account = Tyto::Account.create(username:, email:, password:)
+      puts "+ Created account #{username} (id=#{account.id})"
+    else
+      puts "- Account #{username} already exists (id=#{account.id})"
+    end
+
+    # 3. Grant admin + creator (idempotent).
+    %w[admin creator].each do |role_name|
+      if account.system_roles_dataset.where(name: role_name).any?
+        puts "  - already has '#{role_name}'"
+      else
+        account.add_system_role(Tyto::Role.first(name: role_name))
+        puts "  + granted '#{role_name}'"
+      end
+    end
+  end
 end
 
 desc 'Delete all data and reseed'
