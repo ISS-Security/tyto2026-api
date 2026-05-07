@@ -2,6 +2,8 @@
 
 source 'https://rubygems.org'
 
+ruby File.read('.ruby-version').strip
+
 # Web API
 gem 'base64'
 gem 'json'
@@ -19,6 +21,10 @@ gem 'rbnacl', '~>7.1'
 # Database
 gem 'sequel', '~>5.55'
 gem 'table_print', '~>1.0' # Console / REPL formatting (dev only)
+
+group :production do
+  gem 'pg'
+end
 
 # Debugging
 gem 'pry'

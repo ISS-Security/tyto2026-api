@@ -25,8 +25,14 @@ Install this API by cloning the *relevant branch* and use bundler to install
 specified gems from `Gemfile.lock`:
 
 ```shell
+bundle config set --local without 'production'
 bundle install
 ```
+
+The `--without production` config skips the `pg` gem locally so you don't
+need `libpq` installed for development. Heroku/PaaS deployments pick up
+`pg` from the `:production` group automatically and must **not** carry
+this config.
 
 Copy `config/secrets-example.yml` to `config/secrets.yml` and adjust as needed.
 

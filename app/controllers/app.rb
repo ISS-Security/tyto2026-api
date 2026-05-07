@@ -2,7 +2,6 @@
 
 require 'roda'
 require 'json'
-require 'logger'
 
 require_relative 'http_request'
 
