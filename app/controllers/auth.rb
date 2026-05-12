@@ -13,8 +13,8 @@ module Tyto
           credentials = HttpRequest.new(routing).body_data
           auth_account = AuthenticateAccount.call(credentials)
           auth_account.to_json
-        rescue AuthenticateAccount::UnauthorizedError => e
-          puts [e.class, e.message].join(': ')
+        rescue AuthenticateAccount::UnauthorizedError
+          Api.logger.warn('Authentication failed: invalid credentials')
           routing.halt 403, { message: 'Invalid credentials' }.to_json
         end
       end

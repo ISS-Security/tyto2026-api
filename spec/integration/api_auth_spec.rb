@@ -26,11 +26,9 @@ describe 'Test Authentication' do
     _(result['include']['system_roles']).must_be_kind_of Array
   end
 
-  it 'BAD: should reject invalid password and log to stdout (no stderr)' do
+  it 'BAD: should reject invalid password' do
     creds = { username: @account_data['username'], password: 'not_the_password' }
-    assert_output(/invalid/i, '') do
-      post 'api/v1/auth/authenticate', creds.to_json, @req_header
-    end
+    post 'api/v1/auth/authenticate', creds.to_json, @req_header
     _(last_response.status).must_equal 403
 
     result = JSON.parse last_response.body
@@ -40,9 +38,7 @@ describe 'Test Authentication' do
 
   it 'BAD: should reject unknown username' do
     creds = { username: 'nosuchuser', password: 'anything' }
-    assert_output(/invalid/i, '') do
-      post 'api/v1/auth/authenticate', creds.to_json, @req_header
-    end
+    post 'api/v1/auth/authenticate', creds.to_json, @req_header
     _(last_response.status).must_equal 403
   end
 end

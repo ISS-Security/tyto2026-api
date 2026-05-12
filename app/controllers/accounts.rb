@@ -94,7 +94,7 @@ module Tyto
 
         response.status = 201
         response['Location'] = "#{@account_route}/#{new_account.id}"
-        { message: 'Account saved', data: new_account }.to_json
+        { message: 'Account created', data: new_account }.to_json
       rescue Sequel::MassAssignmentRestriction
         Api.logger.warn "MASS-ASSIGNMENT: #{new_data.keys}"
         routing.halt 400, { message: 'Illegal Attributes' }.to_json
