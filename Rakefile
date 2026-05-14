@@ -68,6 +68,7 @@ namespace :db do
 
   desc 'Destroy data in database; maintain tables'
   task delete: :load_models do
+    Tyto::Attendance.dataset.destroy
     Tyto::Event.dataset.destroy
     Tyto::Location.dataset.destroy
     Tyto::Enrollment.dataset.destroy
@@ -90,6 +91,7 @@ namespace :db do
   task reset_seeds: :load_models do # rubocop:disable Rake/Desc
     db = Tyto::Api.DB
     db[:schema_seeds].delete if db.tables.include?(:schema_seeds)
+    Tyto::Attendance.dataset.destroy
     Tyto::Event.dataset.destroy
     Tyto::Location.dataset.destroy
     Tyto::Enrollment.dataset.destroy

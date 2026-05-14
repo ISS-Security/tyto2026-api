@@ -22,7 +22,7 @@ module Tyto
             end
 
             event = Event.where(course_id:, id: event_id).first
-            event ? event.to_json : raise('Event not found')
+            event ? event.as_hash_for(current_account_id).to_json : raise('Event not found')
           rescue StandardError => e
             routing.halt 404, { message: e.message }.to_json
           end
@@ -33,8 +33,8 @@ module Tyto
               routing.halt 404, { message: 'Course not found' }.to_json
             end
 
-            output = { data: Course.first(id: course_id).events }
-            JSON.pretty_generate(output)
+            payload = Course.first(id: course_id).events.map { |e| e.as_hash_for(current_account_id) }
+            { data: payload }.to_json
           rescue StandardError
             routing.halt 404, { message: 'Could not find events' }.to_json
           end
@@ -103,6 +103,63 @@ module Tyto
           rescue StandardError => e
             Api.logger.error "UNKNOWN ERROR: #{e.message}"
             routing.halt 500, { message: 'Unknown server error' }.to_json
+          end
+        end
+
+        routing.on 'attendances' do
+          @attendance_route = "#{@api_root}/courses/#{course_id}/attendances"
+
+          # GET api/v1/courses/[course_id]/attendances/[event_id]
+          # Teaching-staff: every student's attendance for one event.
+          routing.get String do |event_id|
+            caller_roles = Enrollment.where(account_id: current_account_id, course_id:)
+                                     .map { |e| e.role&.name }
+            unless caller_roles.intersect?(Role::TEACHING)
+              routing.halt 403, { message: 'Only teaching staff can view event attendances' }.to_json
+            end
+
+            attendances = Attendance.where(course_id:, event_id:).all
+            { data: attendances }.to_json
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
+          end
+
+          # POST api/v1/courses/[course_id]/attendances
+          # Student check-in for an event.
+          routing.post do
+            body = HttpRequest.new(routing).body_data
+            attendance = RecordAttendance.call(
+              current_account_id:, course_id:, event_id: body[:event_id]
+            )
+
+            response.status = 201
+            response['Location'] = "#{@attendance_route}/#{attendance.id}"
+            { message: 'Attendance recorded', data: attendance }.to_json
+          rescue Tyto::RecordAttendance::NotAuthorizedError => e
+            routing.halt 403, { message: e.message }.to_json
+          rescue Tyto::RecordAttendance::UnknownEventError => e
+            routing.halt 404, { message: e.message }.to_json
+          rescue Tyto::RecordAttendance::NotLiveError => e
+            routing.halt 422, { message: e.message }.to_json
+          rescue Sequel::UniqueConstraintViolation
+            routing.halt 409, { message: 'Attendance already recorded' }.to_json
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
+          end
+
+          # GET api/v1/courses/[course_id]/attendances
+          # Caller's own attendances for this course.
+          routing.get do
+            unless Enrollment.first(account_id: current_account_id, course_id:)
+              routing.halt 404, { message: 'Course not found' }.to_json
+            end
+
+            output = { data: Attendance.where(account_id: current_account_id, course_id:).all }
+            output.to_json
+          rescue StandardError
+            routing.halt 404, { message: 'Could not find attendances' }.to_json
           end
         end
 

@@ -9,7 +9,7 @@ require 'yaml'
 require_relative 'test_load_all'
 
 TABLES_TO_WIPE = %i[
-  events locations enrollments accounts_roles accounts courses
+  attendances events locations enrollments accounts_roles accounts courses
 ].freeze
 
 def wipe_database
