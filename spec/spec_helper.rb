@@ -16,6 +16,19 @@ def wipe_database
   TABLES_TO_WIPE.each { |table| app.DB[table].delete }
 end
 
+# Builds an Authorization: Bearer header for the given account, mirroring
+# the encrypted-envelope shape AuthenticateAccount issues at login.
+def auth_header(account)
+  envelope = JSON.parse(account.to_json)
+  envelope['attributes'] = envelope['attributes'].merge('id' => account.id)
+  token = Tyto::AuthToken.new(envelope).to_s
+  { 'HTTP_AUTHORIZATION' => "Bearer #{token}" }
+end
+
+def auth_request_header(account)
+  auth_header(account).merge('CONTENT_TYPE' => 'application/json')
+end
+
 DATA = {} # rubocop:disable Style/MutableConstant
 DATA[:courses] = YAML.safe_load_file('db/seeds/course_seeds.yml')
 DATA[:locations] = YAML.safe_load_file('db/seeds/location_seeds.yml')

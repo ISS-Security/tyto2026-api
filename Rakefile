@@ -168,4 +168,10 @@ namespace :newkey do
     require_app('lib', config: false)
     puts "HASH_KEY: #{Tyto::SecureDB.generate_key}"
   end
+
+  desc 'Create sample cryptographic key for encrypted auth tokens'
+  task :msg do
+    require_app('lib', config: false)
+    puts "MSG_KEY: #{Tyto::AuthToken.generate_key}"
+  end
 end

@@ -8,6 +8,8 @@ module Tyto
   class Api < Roda # rubocop:disable Metrics/ClassLength
     route('courses') do |routing|
       @course_route = "#{@api_root}/courses"
+      current_account_id = @auth_account&.dig('attributes', 'id')
+      routing.halt(401, { message: 'Authentication required' }.to_json) unless current_account_id
 
       routing.on String do |course_id|
         routing.on 'events' do
@@ -15,8 +17,6 @@ module Tyto
 
           # GET api/v1/courses/[course_id]/events/[event_id]
           routing.get String do |event_id|
-            current_account_id = routing.params['current_account_id']
-            routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
             unless Enrollment.first(account_id: current_account_id, course_id:)
               routing.halt 404, { message: 'Course not found' }.to_json
             end
@@ -29,8 +29,6 @@ module Tyto
 
           # GET api/v1/courses/[course_id]/events
           routing.get do
-            current_account_id = routing.params['current_account_id']
-            routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
             unless Enrollment.first(account_id: current_account_id, course_id:)
               routing.halt 404, { message: 'Course not found' }.to_json
             end
@@ -44,9 +42,6 @@ module Tyto
           # POST api/v1/courses/[course_id]/events
           routing.post do
             body = HttpRequest.new(routing).body_data
-            current_account_id = body[:current_account_id]
-            routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
-
             event_data = body.slice(:name, :start_at, :end_at, :location_id)
             new_event = CreateEventForCourse.call(
               current_account_id:, course_id:, event_data:
@@ -69,8 +64,6 @@ module Tyto
 
           # GET api/v1/courses/[course_id]/locations/[location_id]
           routing.get String do |location_id|
-            current_account_id = routing.params['current_account_id']
-            routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
             unless Enrollment.first(account_id: current_account_id, course_id:)
               routing.halt 404, { message: 'Course not found' }.to_json
             end
@@ -83,8 +76,6 @@ module Tyto
 
           # GET api/v1/courses/[course_id]/locations
           routing.get do
-            current_account_id = routing.params['current_account_id']
-            routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
             unless Enrollment.first(account_id: current_account_id, course_id:)
               routing.halt 404, { message: 'Course not found' }.to_json
             end
@@ -98,9 +89,6 @@ module Tyto
           # POST api/v1/courses/[course_id]/locations
           routing.post do
             body = HttpRequest.new(routing).body_data
-            current_account_id = body[:current_account_id]
-            routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
-
             location_data = body.slice(:name, :longitude, :latitude)
             new_loc = CreateLocationForCourse.call(
               current_account_id:, course_id:, location_data:
@@ -124,9 +112,6 @@ module Tyto
           routing.on String do |segment|
             # DELETE api/v1/courses/[course_id]/enrollments/[enrollment_id]
             routing.delete do
-              body = HttpRequest.new(routing).body_data
-              current_account_id = body[:current_account_id]
-              routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
               current_role_names = Enrollment.where(account_id: current_account_id, course_id:)
                                              .map { |e| e.role&.name }
               unless current_role_names.intersect?(Role::TEACHING)
@@ -148,9 +133,6 @@ module Tyto
             # POST api/v1/courses/[course_id]/enrollments/[username]
             routing.post do
               body = HttpRequest.new(routing).body_data
-              current_account_id = body[:current_account_id]
-              routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
-
               target = Account.first(username: segment)
               routing.halt(404, { message: 'Account not found' }.to_json) unless target
 
@@ -179,8 +161,6 @@ module Tyto
 
           # GET api/v1/courses/[course_id]/enrollments
           routing.get do
-            current_account_id = routing.params['current_account_id']
-            routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
             unless Enrollment.first(account_id: current_account_id, course_id:)
               routing.halt 404, { message: 'Course not found' }.to_json
             end
@@ -194,8 +174,6 @@ module Tyto
 
         # GET api/v1/courses/[course_id]
         routing.get do
-          current_account_id = routing.params['current_account_id']
-          routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
           unless Enrollment.first(account_id: current_account_id, course_id:)
             routing.halt 404, { message: 'Course not found' }.to_json
           end
@@ -207,12 +185,9 @@ module Tyto
         end
       end
 
-      # GET api/v1/courses?current_account_id=<id>
-      # Returns only courses the supplied account is enrolled in.
+      # GET api/v1/courses
+      # Returns only courses the authenticated account is enrolled in.
       routing.get do
-        current_account_id = routing.params['current_account_id']
-        routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
-
         account = Account.first(id: current_account_id)
         output = { data: account ? account.courses.uniq : [] }
         JSON.pretty_generate(output)
@@ -223,9 +198,6 @@ module Tyto
       # POST api/v1/courses
       routing.post do
         body = HttpRequest.new(routing).body_data
-        current_account_id = body[:current_account_id]
-        routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
-
         course_data = body.slice(:name, :description)
         new_course = CreateCourseForOwner.call(
           current_account_id:, owner_id: current_account_id, course_data:

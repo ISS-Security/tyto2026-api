@@ -11,12 +11,22 @@ module Tyto
     plugin :halt
     plugin :all_verbs
     plugin :multi_route
+    plugin :request_headers
 
     route do |routing|
       response['Content-Type'] = 'application/json'
 
-      HttpRequest.new(routing).secure? ||
+      http_request = HttpRequest.new(routing)
+      http_request.secure? ||
         routing.halt(403, { message: 'TLS/SSL Required' }.to_json)
+
+      begin
+        @auth_account = http_request.authenticated_account
+      rescue AuthToken::InvalidTokenError
+        routing.halt 403, { message: 'Invalid auth token' }.to_json
+      rescue AuthToken::ExpiredTokenError
+        routing.halt 403, { message: 'Expired auth token' }.to_json
+      end
 
       routing.root do
         { message: 'TytoAPI up at /api/v1' }.to_json

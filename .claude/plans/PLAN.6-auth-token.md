@@ -66,7 +66,7 @@ Order the work so each layer compiles before the next.
 
 | Risk | Addressed here | Deferred |
 | --- | --- | --- |
-| API trusts client-supplied `current_account_id` | Replaced with encrypted Bearer-token-derived `@auth_account` | Per-route policy gates (deferred per project rules) |
+| API trusts client-supplied `current_account_id` | Replaced with encrypted Bearer-token-derived `@auth_account` | Granular per-route authorization (deferred per project rules) |
 | Plaintext account registration over the wire | Email verification gates account creation — only someone who can read the email can complete the password-set step | Server-side rate limiting on `/auth/register` (deferred) |
 | Token replay after compromise | Tokens are time-limited (default `ONE_WEEK`) and encrypted with `MSG_KEY` | Token revocation list (deferred) |
 | Email verification token tampering | Token is `SimpleBox`-encrypted (XSalsa20-Poly1305 AEAD): forgery requires `MSG_KEY` | — |
@@ -111,7 +111,7 @@ No new entities. Existing entities (Account, Course, Event, Location, Enrollment
 
 **In scope — Payload 2 (attendance check-in)**:
 
-- Migration: `attendances` table (`id, account_id, event_id, course_id, checked_in_at`). Unique `(account_id, event_id)`. **No coord columns** — those land in a later branch as an additive `alter_table`.
+- Migration: `attendances` table (`id, account_id, event_id, course_id, checked_in_at`). Unique `(account_id, event_id)`.
 - `Attendance` Sequel model (`belongs_to :account, :event, :course`, `whitelist_security` allows `:account_id, :event_id, :course_id`).
 - `Event` model gains `live_now?` predicate and `live_now` class-level dataset filter. `Event#to_json` includes `my_attendance_id` when the caller has an attendance row for the event.
 - `RecordAttendance` service (new) — inline role check (student-enrolled-in-course). Raise `NotAuthorizedError` / `UnknownEventError` as appropriate. Returns the new `Attendance` row. *Inline check is intentional and stays scattered for now per project rules.*
@@ -126,12 +126,10 @@ No new entities. Existing entities (Account, Course, Event, Location, Enrollment
 
 **Out of scope** (deferred per project rules — do not creep in):
 
-- Token scopes (resource:permission strings)
-- Policy objects (including `AttendancePolicy`)
 - Refactor of inline role checks (including the new one in `RecordAttendance`)
-- Encrypted attendance coordinates (`longitude_secure`, `latitude_secure`) — additive migration in a later branch
-- Geo half of attendance eligibility (haversine, ~55 m) — only the time half ships now
-- Staff `PUT /attendances/[event_id]/[account_id]` (toggle) — later branch
+- Any expansion of the attendance domain beyond the columns + routes listed above
+- Place-based attendance check (only the time-window half ships now)
+- Staff toggle/override of attendance rows
 - Token revocation list / refresh tokens
 - Email rate limiting / abuse prevention
 
@@ -209,7 +207,7 @@ No new entities. Existing entities (Account, Course, Event, Location, Enrollment
 
 ### Attendance (Payload 2)
 
-- [ ] Migration `db/migrations/00X_attendances_create.rb` — additive, no coord columns.
+- [ ] Migration `db/migrations/00X_attendances_create.rb` — `id, account_id, event_id, course_id, checked_in_at`; unique `(account_id, event_id)`.
 - [ ] `app/models/attendance.rb` (new) — associations + whitelist + timestamps.
 - [ ] `app/models/event.rb` — add `live_now?` predicate, `live_now` dataset filter, and `my_attendance_id` field in `to_json` when caller-scoped.
 - [ ] `app/services/record_attendance.rb` (new) — inline role check; raises `NotAuthorizedError`, `UnknownEventError`.
@@ -241,7 +239,7 @@ No new entities. Existing entities (Account, Course, Event, Location, Enrollment
   Adds attendance check-in and eligibility listing                       ← payload 2
   ```
 - **Payload 1 subject**: `Sends out verification email and requires token-based authorization`.
-- **Payload 2 subject**: `Adds attendance check-in and eligibility listing`. Body notes the inline role check in `RecordAttendance` as a deliberate smell preserved for a later policy-extraction branch, and that encrypted coords + geo-validation arrive in a later branch alongside the geo half of attendance eligibility.
+- **Payload 2 subject**: `Adds attendance check-in and eligibility listing`. Body notes the inline role check in `RecordAttendance` as a deliberate smell preserved for a later refactor, and that the place-based half of the eligibility check (along with any related encryption) is deferred.
 
 ## Infrastructure setup (user-operated)
 
