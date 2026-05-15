@@ -13,6 +13,10 @@ module Tyto
     class ExpiredTokenError < StandardError; end
     class InvalidTokenError < StandardError; end
 
+    def self.setup(base_key)
+      setup_secret_key(base_key)
+    end
+
     ONE_HOUR  = 60 * 60
     ONE_DAY   = ONE_HOUR * 24
     ONE_WEEK  = ONE_DAY * 7
