@@ -15,14 +15,14 @@ describe 'Test Account Handling' do
       account_data = DATA[:accounts][1]
       account = Tyto::Account.create(account_data)
 
-      get "/api/v1/accounts/#{account.username}?current_account_id=#{account.id}"
+      get "/api/v1/accounts/#{account.username}", nil, auth_header(account)
       _(last_response.status).must_equal 200
 
       result = JSON.parse last_response.body
       _(result['type']).must_equal 'account'
 
       attrs = result['attributes']
-      _(attrs['id']).must_equal account.id
+      _(attrs['id']).must_be_nil # rolled back -- id no longer leaks in plaintext
       _(attrs['username']).must_equal account.username
       _(attrs['email']).must_equal account.email
       _(attrs['salt']).must_be_nil
@@ -47,7 +47,7 @@ describe 'Test Account Handling' do
         current_account_id: owner.id, owner_id: owner.id, course_data: DATA[:courses][0]
       )
 
-      get "/api/v1/accounts/#{owner.username}?current_account_id=#{owner.id}"
+      get "/api/v1/accounts/#{owner.username}", nil, auth_header(owner)
       _(last_response.status).must_equal 200
 
       include_block = JSON.parse(last_response.body)['include']
@@ -62,31 +62,31 @@ describe 'Test Account Handling' do
 
     it 'SAD: should return 404 for unknown username' do
       requester = Tyto::Account.create(DATA[:accounts][0])
-      get "/api/v1/accounts/nosuchuser?current_account_id=#{requester.id}"
+      get '/api/v1/accounts/nosuchuser', nil, auth_header(requester)
       _(last_response.status).must_equal 404
     end
 
-    it 'SECURITY: missing current_account_id returns 401' do
+    it 'SECURITY: missing Authorization returns 401' do
       account = Tyto::Account.create(DATA[:accounts][1])
       get "/api/v1/accounts/#{account.username}"
       _(last_response.status).must_equal 401
     end
 
-    it 'SECURITY: returns 404 when current_account_id does not match the requested account' do
+    it 'SECURITY: returns 404 when caller does not match the requested account' do
       target = Tyto::Account.create(DATA[:accounts][0])
       requester = Tyto::Account.create(DATA[:accounts][1])
-      get "/api/v1/accounts/#{target.username}?current_account_id=#{requester.id}"
+      get "/api/v1/accounts/#{target.username}", nil, auth_header(requester)
       _(last_response.status).must_equal 404
     end
 
     it 'HAPPY: admin should be able to view any account' do
-      %w[admin].each { |r| Tyto::Role.find_or_create(name: r) }
+      Tyto::Role.find_or_create(name: 'admin')
 
       target = Tyto::Account.create(DATA[:accounts][0])
       admin = Tyto::Account.create(DATA[:accounts][1])
       admin.add_system_role(Tyto::Role.first(name: 'admin'))
 
-      get "/api/v1/accounts/#{target.username}?current_account_id=#{admin.id}"
+      get "/api/v1/accounts/#{target.username}", nil, auth_header(admin)
       _(last_response.status).must_equal 200
 
       result = JSON.parse(last_response.body)
@@ -107,7 +107,6 @@ describe 'Test Account Handling' do
       created = JSON.parse(last_response.body)['data']['attributes']
       account = Tyto::Account.first
 
-      _(created['id']).must_equal account.id
       _(created['username']).must_equal @account_data['username']
       _(created['email']).must_equal @account_data['email']
       _(account.password?(@account_data['password'])).must_equal true
@@ -138,8 +137,8 @@ describe 'Test Account Handling' do
     it 'HAPPY: admin should promote a member to creator' do
       put(
         "/api/v1/accounts/#{@target.username}/system_roles/creator",
-        { current_account_id: @admin.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@admin)
       )
       _(last_response.status).must_equal 201
       _(@target.reload.system_roles.map(&:name)).must_include 'creator'
@@ -150,8 +149,8 @@ describe 'Test Account Handling' do
 
       put(
         "/api/v1/accounts/#{@target.username}/system_roles/creator",
-        { current_account_id: @admin.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@admin)
       )
       _(last_response.status).must_equal 200
       _(@target.reload.system_roles.count { |r| r.name == 'creator' }).must_equal 1
@@ -162,8 +161,8 @@ describe 'Test Account Handling' do
 
       delete(
         "/api/v1/accounts/#{@target.username}/system_roles/creator",
-        { current_account_id: @admin.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@admin)
       )
       _(last_response.status).must_equal 200
       _(@target.reload.system_roles.map(&:name)).wont_include 'creator'
@@ -175,8 +174,8 @@ describe 'Test Account Handling' do
 
       put(
         "/api/v1/accounts/#{@target.username}/system_roles/creator",
-        { current_account_id: caller_account.id }.to_json,
-        @req_header
+        nil,
+        auth_header(caller_account)
       )
       _(last_response.status).must_equal 403
       _(@target.reload.system_roles).must_be_empty
@@ -188,8 +187,8 @@ describe 'Test Account Handling' do
 
       delete(
         "/api/v1/accounts/#{@target.username}/system_roles/creator",
-        { current_account_id: caller_account.id }.to_json,
-        @req_header
+        nil,
+        auth_header(caller_account)
       )
       _(last_response.status).must_equal 403
       _(@target.reload.system_roles.map(&:name)).must_include 'creator'
@@ -198,8 +197,8 @@ describe 'Test Account Handling' do
     it 'BAD: course-only role rejected on PUT' do
       put(
         "/api/v1/accounts/#{@target.username}/system_roles/student",
-        { current_account_id: @admin.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@admin)
       )
       _(last_response.status).must_equal 400
       _(@target.reload.system_roles).must_be_empty
@@ -208,8 +207,8 @@ describe 'Test Account Handling' do
     it 'BAD: nonsense role rejected on PUT' do
       put(
         "/api/v1/accounts/#{@target.username}/system_roles/wizard",
-        { current_account_id: @admin.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@admin)
       )
       _(last_response.status).must_equal 400
     end
@@ -217,8 +216,8 @@ describe 'Test Account Handling' do
     it 'BAD: unknown target username returns 404' do
       put(
         '/api/v1/accounts/nosuchuser/system_roles/creator',
-        { current_account_id: @admin.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@admin)
       )
       _(last_response.status).must_equal 404
     end
@@ -226,13 +225,13 @@ describe 'Test Account Handling' do
     it 'BAD: DELETE of an unassigned role returns 404' do
       delete(
         "/api/v1/accounts/#{@target.username}/system_roles/creator",
-        { current_account_id: @admin.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@admin)
       )
       _(last_response.status).must_equal 404
     end
 
-    it 'SECURITY: missing current_account_id returns 401 on PUT' do
+    it 'SECURITY: missing Authorization returns 401 on PUT' do
       put(
         "/api/v1/accounts/#{@target.username}/system_roles/creator",
         {}.to_json,
@@ -241,7 +240,7 @@ describe 'Test Account Handling' do
       _(last_response.status).must_equal 401
     end
 
-    it 'SECURITY: missing current_account_id returns 401 on DELETE' do
+    it 'SECURITY: missing Authorization returns 401 on DELETE' do
       delete(
         "/api/v1/accounts/#{@target.username}/system_roles/creator",
         {}.to_json,

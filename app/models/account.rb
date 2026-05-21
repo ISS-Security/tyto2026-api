@@ -54,7 +54,6 @@ module Tyto
         {
           type: 'account',
           attributes: {
-            id:,
             username:,
             email:
           },

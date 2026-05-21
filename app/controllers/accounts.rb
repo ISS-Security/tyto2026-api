@@ -10,15 +10,14 @@ module Tyto
       @account_route = "#{@api_root}/accounts"
 
       routing.on String do |username|
+        current_account_id = @auth_account&.dig('attributes', 'id')
+        routing.halt(401, { message: 'Authentication required' }.to_json) unless current_account_id
+
         routing.on 'system_roles' do
           routing.on String do |role_name|
             # PUT api/v1/accounts/[username]/system_roles/[role_name]
             # Idempotent: 201 the first time, 200 on re-PUT.
             routing.put do
-              body = HttpRequest.new(routing).body_data
-              current_account_id = body[:current_account_id]
-              routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
-
               result = AssignSystemRole.call(
                 current_account_id:, target_username: username, role_name:
               )
@@ -38,10 +37,6 @@ module Tyto
 
             # DELETE api/v1/accounts/[username]/system_roles/[role_name]
             routing.delete do
-              body = HttpRequest.new(routing).body_data
-              current_account_id = body[:current_account_id]
-              routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
-
               current_account = Account.first(id: current_account_id)
               unless current_account && current_account.system_roles.map(&:name).include?('admin')
                 routing.halt 403, { message: 'Only admins can manage system roles' }.to_json
@@ -69,9 +64,6 @@ module Tyto
         # GET api/v1/accounts/[username]
         # Self-view, or admin viewing any account.
         routing.get do
-          current_account_id = routing.params['current_account_id']
-          routing.halt(401, { message: 'Missing current_account_id' }.to_json) unless current_account_id
-
           account = Account.first(username:)
           routing.halt(404, { message: 'Account not found' }.to_json) unless account
 
@@ -86,7 +78,7 @@ module Tyto
         end
       end
 
-      # POST api/v1/accounts
+      # POST api/v1/accounts  (anonymous; account creation)
       routing.post do
         new_data = HttpRequest.new(routing).body_data
         new_account = Account.new(new_data)

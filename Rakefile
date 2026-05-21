@@ -68,6 +68,7 @@ namespace :db do
 
   desc 'Destroy data in database; maintain tables'
   task delete: :load_models do
+    Tyto::Attendance.dataset.destroy
     Tyto::Event.dataset.destroy
     Tyto::Location.dataset.destroy
     Tyto::Enrollment.dataset.destroy
@@ -90,6 +91,7 @@ namespace :db do
   task reset_seeds: :load_models do # rubocop:disable Rake/Desc
     db = Tyto::Api.DB
     db[:schema_seeds].delete if db.tables.include?(:schema_seeds)
+    Tyto::Attendance.dataset.destroy
     Tyto::Event.dataset.destroy
     Tyto::Location.dataset.destroy
     Tyto::Enrollment.dataset.destroy
@@ -167,5 +169,11 @@ namespace :newkey do
   task :hash do
     require_app('lib', config: false)
     puts "HASH_KEY: #{Tyto::SecureDB.generate_key}"
+  end
+
+  desc 'Create sample cryptographic key for encrypted auth tokens'
+  task :msg do
+    require_app('lib', config: false)
+    puts "MSG_KEY: #{Tyto::AuthToken.generate_key}"
   end
 end

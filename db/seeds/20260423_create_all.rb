@@ -13,6 +13,7 @@ Sequel.seed(:development) do
     create_non_owner_enrollments
     create_locations
     create_events
+    create_live_now_event
   end
 end
 
@@ -109,3 +110,25 @@ def create_events
     )
   end
 end
+
+# Computed at seed time (not stored in YAML) so the manual smoke test
+# always finds a "live right now" event regardless of the wall clock.
+# Attaches it to a course that has at least one student enrolled.
+# rubocop:disable Metrics/MethodLength
+def create_live_now_event
+  student_role = Tyto::Role.first(name: 'student')
+  enrollment = Tyto::Enrollment.where(role_id: student_role.id).first
+  return unless enrollment
+
+  course = enrollment.course
+  Tyto::CreateEventForCourse.call(
+    current_account_id: course.owner.id,
+    course_id: course.id,
+    event_data: {
+      'name' => 'Live Demo Session',
+      'start_at' => Time.now - 1800,
+      'end_at' => Time.now + 7200
+    }
+  )
+end
+# rubocop:enable Metrics/MethodLength

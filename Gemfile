@@ -18,6 +18,9 @@ gem 'rake'
 # Security
 gem 'rbnacl', '~>7.1'
 
+# HTTP client (for outbound API calls, e.g. Mailjet)
+gem 'http', '~>5.1'
+
 # Database
 gem 'sequel', '~>5.55'
 gem 'table_print', '~>1.0' # Console / REPL formatting (dev only)
@@ -38,6 +41,7 @@ end
 group :test do
   gem 'minitest'
   gem 'minitest-rg'
+  gem 'webmock'
 end
 
 group :development do

@@ -27,7 +27,7 @@ describe 'Test Event Handling' do
       course.add_event(event)
     end
 
-    get "api/v1/courses/#{course.id}/events?current_account_id=#{@owner.id}"
+    get "api/v1/courses/#{course.id}/events", nil, auth_header(@owner)
     _(last_response.status).must_equal 200
 
     result = JSON.parse last_response.body
@@ -40,7 +40,7 @@ describe 'Test Event Handling' do
     course = Tyto::Course.first
     event = course.add_event(event_data)
 
-    get "/api/v1/courses/#{course.id}/events/#{event.id}?current_account_id=#{@owner.id}"
+    get "/api/v1/courses/#{course.id}/events/#{event.id}", nil, auth_header(@owner)
     _(last_response.status).must_equal 200
 
     result = JSON.parse last_response.body
@@ -52,21 +52,21 @@ describe 'Test Event Handling' do
 
   it 'SAD: should return error if unknown event requested' do
     course = Tyto::Course.first
-    get "/api/v1/courses/#{course.id}/events/foobar?current_account_id=#{@owner.id}"
+    get "/api/v1/courses/#{course.id}/events/foobar", nil, auth_header(@owner)
 
     _(last_response.status).must_equal 404
   end
 
-  it 'SECURITY: events list returns 401 when current_account_id missing' do
+  it 'SECURITY: events list returns 401 when Authorization missing' do
     course = Tyto::Course.first
     get "api/v1/courses/#{course.id}/events"
     _(last_response.status).must_equal 401
   end
 
-  it 'SECURITY: events list returns 404 when current_account_id is not enrolled' do
+  it 'SECURITY: events list returns 404 when caller is not enrolled' do
     course = Tyto::Course.first
     outsider = Tyto::Account.create(DATA[:accounts][1])
-    get "api/v1/courses/#{course.id}/events?current_account_id=#{outsider.id}"
+    get "api/v1/courses/#{course.id}/events", nil, auth_header(outsider)
     _(last_response.status).must_equal 404
   end
 
@@ -74,13 +74,11 @@ describe 'Test Event Handling' do
     before do
       @course = Tyto::Course.first
       @event_data = DATA[:events][1]
-      @req_header = { 'CONTENT_TYPE' => 'application/json' }
     end
 
     it 'HAPPY: should be able to create new events' do
-      payload = @event_data.merge('current_account_id' => @owner.id)
       post "api/v1/courses/#{@course.id}/events",
-           payload.to_json, @req_header
+           @event_data.to_json, auth_request_header(@owner)
       _(last_response.status).must_equal 201
       _(last_response.headers['Location'].size).must_be :>, 0
 
@@ -92,11 +90,9 @@ describe 'Test Event Handling' do
     end
 
     it 'SECURITY: should silently drop unknown attributes from request body' do
-      bad_data = @event_data.merge(
-        'current_account_id' => @owner.id, 'created_at' => '1900-01-01'
-      )
+      bad_data = @event_data.merge('created_at' => '1900-01-01')
       post "api/v1/courses/#{@course.id}/events",
-           bad_data.to_json, @req_header
+           bad_data.to_json, auth_request_header(@owner)
 
       _(last_response.status).must_equal 201
       event = Tyto::Event.first
@@ -104,19 +100,18 @@ describe 'Test Event Handling' do
       _(event.created_at.year).wont_equal 1900
     end
 
-    it 'SECURITY: missing current_account_id returns 401' do
+    it 'SECURITY: missing Authorization header returns 401' do
       post "api/v1/courses/#{@course.id}/events",
-           @event_data.to_json, @req_header
+           @event_data.to_json, { 'CONTENT_TYPE' => 'application/json' }
 
       _(last_response.status).must_equal 401
     end
 
-    it 'SECURITY: non-teaching current_account_id returns 403' do
+    it 'SECURITY: non-teaching caller returns 403' do
       outsider = Tyto::Account.create(DATA[:accounts][1])
-      payload = @event_data.merge('current_account_id' => outsider.id)
 
       post "api/v1/courses/#{@course.id}/events",
-           payload.to_json, @req_header
+           @event_data.to_json, auth_request_header(outsider)
 
       _(last_response.status).must_equal 403
     end

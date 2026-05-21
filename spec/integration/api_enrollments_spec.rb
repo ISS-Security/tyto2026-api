@@ -18,7 +18,6 @@ describe 'Test Enrollment Handling' do
     @course = Tyto::CreateCourseForOwner.call(
       current_account_id: @owner.id, owner_id: @owner.id, course_data: DATA[:courses][0]
     )
-    @req_header = { 'CONTENT_TYPE' => 'application/json' }
   end
 
   describe 'Listing enrollments' do
@@ -28,7 +27,7 @@ describe 'Test Enrollment Handling' do
         course_id: @course.id, role_name: 'student'
       )
 
-      get "api/v1/courses/#{@course.id}/enrollments?current_account_id=#{@owner.id}"
+      get "api/v1/courses/#{@course.id}/enrollments", nil, auth_header(@owner)
       _(last_response.status).must_equal 200
 
       result = JSON.parse(last_response.body)
@@ -38,14 +37,14 @@ describe 'Test Enrollment Handling' do
       _(result['data'].first['include']['account']['username']).wont_be_nil
     end
 
-    it 'SECURITY: enrollments list returns 401 when current_account_id missing' do
+    it 'SECURITY: enrollments list returns 401 when Authorization missing' do
       get "api/v1/courses/#{@course.id}/enrollments"
       _(last_response.status).must_equal 401
     end
 
-    it 'SECURITY: enrollments list returns 404 when current_account_id is not enrolled' do
+    it 'SECURITY: enrollments list returns 404 when caller is not enrolled' do
       outsider = Tyto::Account.create(DATA[:accounts][2])
-      get "api/v1/courses/#{@course.id}/enrollments?current_account_id=#{outsider.id}"
+      get "api/v1/courses/#{@course.id}/enrollments", nil, auth_header(outsider)
       _(last_response.status).must_equal 404
     end
   end
@@ -54,8 +53,8 @@ describe 'Test Enrollment Handling' do
     it 'HAPPY: should create a student enrollment' do
       post(
         "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
-        { current_account_id: @owner.id, role_name: 'student' }.to_json,
-        @req_header
+        { role_name: 'student' }.to_json,
+        auth_request_header(@owner)
       )
       _(last_response.status).must_equal 201
       _(last_response.headers['Location'].size).must_be :>, 0
@@ -66,8 +65,8 @@ describe 'Test Enrollment Handling' do
     it 'SAD: should 404 on unknown username' do
       post(
         "api/v1/courses/#{@course.id}/enrollments/nosuchuser",
-        { current_account_id: @owner.id, role_name: 'student' }.to_json,
-        @req_header
+        { role_name: 'student' }.to_json,
+        auth_request_header(@owner)
       )
       _(last_response.status).must_equal 404
     end
@@ -75,8 +74,8 @@ describe 'Test Enrollment Handling' do
     it 'SAD: should 400 on unknown role_name' do
       post(
         "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
-        { current_account_id: @owner.id, role_name: 'supreme_leader' }.to_json,
-        @req_header
+        { role_name: 'supreme_leader' }.to_json,
+        auth_request_header(@owner)
       )
       _(last_response.status).must_equal 400
     end
@@ -84,8 +83,8 @@ describe 'Test Enrollment Handling' do
     it 'BAD: should 400 when smuggling a system role into a course enrollment' do
       post(
         "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
-        { current_account_id: @owner.id, role_name: 'admin' }.to_json,
-        @req_header
+        { role_name: 'admin' }.to_json,
+        auth_request_header(@owner)
       )
       _(last_response.status).must_equal 400
       _(Tyto::Enrollment.where(account_id: @student.id, course_id: @course.id).count).must_equal 0
@@ -99,26 +98,26 @@ describe 'Test Enrollment Handling' do
 
       post(
         "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
-        { current_account_id: @owner.id, role_name: 'student' }.to_json,
-        @req_header
+        { role_name: 'student' }.to_json,
+        auth_request_header(@owner)
       )
       _(last_response.status).must_equal 409
     end
 
-    it 'SECURITY: missing current_account_id returns 401' do
+    it 'SECURITY: missing Authorization header returns 401' do
       post(
         "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
         { role_name: 'student' }.to_json,
-        @req_header
+        { 'CONTENT_TYPE' => 'application/json' }
       )
       _(last_response.status).must_equal 401
     end
 
-    it 'SECURITY: non-teaching current_account_id returns 403' do
+    it 'SECURITY: non-teaching caller returns 403' do
       post(
         "api/v1/courses/#{@course.id}/enrollments/#{@student.username}",
-        { current_account_id: @student.id, role_name: 'student' }.to_json,
-        @req_header
+        { role_name: 'student' }.to_json,
+        auth_request_header(@student)
       )
       _(last_response.status).must_equal 403
     end
@@ -135,8 +134,8 @@ describe 'Test Enrollment Handling' do
     it 'HAPPY: should remove an enrollment' do
       delete(
         "api/v1/courses/#{@course.id}/enrollments/#{@enrollment.id}",
-        { current_account_id: @owner.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@owner)
       )
       _(last_response.status).must_equal 200
       _(Tyto::Enrollment.first(id: @enrollment.id)).must_be_nil
@@ -151,8 +150,8 @@ describe 'Test Enrollment Handling' do
 
       delete(
         "api/v1/courses/#{other_course.id}/enrollments/#{@enrollment.id}",
-        { current_account_id: @owner.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@owner)
       )
       _(last_response.status).must_equal 404
       _(Tyto::Enrollment.first(id: @enrollment.id)).wont_be_nil
@@ -161,22 +160,22 @@ describe 'Test Enrollment Handling' do
     it 'SAD: should 404 for nonexistent enrollment_id' do
       delete(
         "api/v1/courses/#{@course.id}/enrollments/999999",
-        { current_account_id: @owner.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@owner)
       )
       _(last_response.status).must_equal 404
     end
 
-    it 'SECURITY: delete returns 401 when current_account_id missing' do
+    it 'SECURITY: delete returns 401 when Authorization missing' do
       delete "api/v1/courses/#{@course.id}/enrollments/#{@enrollment.id}"
       _(last_response.status).must_equal 401
     end
 
-    it 'SECURITY: delete returns 403 when current_account_id is not teaching staff' do
+    it 'SECURITY: delete returns 403 when caller is not teaching staff' do
       delete(
         "api/v1/courses/#{@course.id}/enrollments/#{@enrollment.id}",
-        { current_account_id: @student.id }.to_json,
-        @req_header
+        nil,
+        auth_header(@student)
       )
       _(last_response.status).must_equal 403
       _(Tyto::Enrollment.first(id: @enrollment.id)).wont_be_nil
