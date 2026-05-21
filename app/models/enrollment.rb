@@ -27,7 +27,7 @@ module Tyto
             role: role.name
           },
           include: {
-            account: { username: account.username }
+            account: { type: 'account', attributes: { username: account.username } }
           }
         }, options
       )

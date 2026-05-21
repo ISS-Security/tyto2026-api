@@ -113,7 +113,9 @@ end
 
 # Computed at seed time (not stored in YAML) so the manual smoke test
 # always finds a "live right now" event regardless of the wall clock.
-# Attaches it to a course that has at least one student enrolled.
+# Attaches it to a course that has at least one student enrolled, and
+# binds the event to that course's first location so the App-side
+# attendance-map widget has coordinates to render.
 # rubocop:disable Metrics/MethodLength
 def create_live_now_event
   student_role = Tyto::Role.first(name: 'student')
@@ -121,13 +123,17 @@ def create_live_now_event
   return unless enrollment
 
   course = enrollment.course
+  location = course.locations.first
+  return unless location
+
   Tyto::CreateEventForCourse.call(
     current_account_id: course.owner.id,
     course_id: course.id,
     event_data: {
       'name' => 'Live Demo Session',
       'start_at' => Time.now - 1800,
-      'end_at' => Time.now + 7200
+      'end_at' => Time.now + 7200,
+      'location_id' => location.id
     }
   )
 end

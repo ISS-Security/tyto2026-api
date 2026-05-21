@@ -2,20 +2,21 @@
 
 module Tyto
   # Enrolls an account in a course under a named role.
-  # Single seam for non-owner enrollments; policy checks arrive in 7-policies.
+  # Authorization sits behind EnrollmentPolicy.
   class EnrollAccountInCourse
     class UnknownRoleError < StandardError; end
+    class UnknownCourseError < StandardError; end
+    class UnknownCurrentAccountError < StandardError; end
     class NotAuthorizedError < StandardError; end
 
-    # NOTE: role-checking belongs in a Policy object (see branch 7-policies).
-    # It lives here for now to demonstrate the smell that motivates extracting it.
     # rubocop:disable Metrics/MethodLength
     def self.call(current_account_id:, target_account_id:, course_id:, role_name:)
-      current_role = Enrollment
-                     .where(account_id: current_account_id, course_id:).all
-                     .map { |e| e.role&.name }
-      raise NotAuthorizedError, 'Only teaching staff can manage enrollments' unless
-        current_role.intersect?(Role::TEACHING)
+      current_account = Account.first(id: current_account_id) or raise UnknownCurrentAccountError
+      course = Course.first(id: course_id) or raise UnknownCourseError
+
+      unless EnrollmentPolicy.new(current_account, course).can_manage?
+        raise NotAuthorizedError, 'Only teaching staff can manage enrollments'
+      end
 
       raise UnknownRoleError, role_name unless Role::COURSE.include?(role_name)
 
