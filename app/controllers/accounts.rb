@@ -77,7 +77,8 @@ module Tyto
           envelope['capabilities'] = policy.capabilities if requester && requester.id == account.id
           envelope.to_json
         rescue StandardError => e
-          routing.halt 404, { message: e.message }.to_json
+          Api.logger.error "UNKNOWN ERROR: #{e.message}"
+          routing.halt 500, { message: 'Unknown server error' }.to_json
         end
       end
 

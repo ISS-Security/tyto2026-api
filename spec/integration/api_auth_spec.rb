@@ -44,7 +44,7 @@ describe 'Test Authentication' do
   it 'BAD: should reject invalid password' do
     creds = { username: @account_data['username'], password: 'not_the_password' }
     post 'api/v1/auth/authenticate', creds.to_json, @req_header
-    _(last_response.status).must_equal 403
+    _(last_response.status).must_equal 401
 
     result = JSON.parse last_response.body
     _(result['message']).wont_be_nil
@@ -54,7 +54,7 @@ describe 'Test Authentication' do
   it 'BAD: should reject unknown username' do
     creds = { username: 'nosuchuser', password: 'anything' }
     post 'api/v1/auth/authenticate', creds.to_json, @req_header
-    _(last_response.status).must_equal 403
+    _(last_response.status).must_equal 401
   end
 
   describe 'Registration verification' do

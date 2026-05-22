@@ -24,13 +24,14 @@ module Tyto
             routing.halt(404, { message: 'Course not found' }.to_json) unless course_policy.can_view?
 
             event = Event.where(course_id:, id: event_id).first
-            raise('Event not found') unless event
+            routing.halt(404, { message: 'Event not found' }.to_json) unless event
 
             envelope = event.as_hash_for(current_account_id)
             envelope[:policies] = EventPolicy.new(current_account, event).summary
             envelope.to_json
           rescue StandardError => e
-            routing.halt 404, { message: e.message }.to_json
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
 
           # GET api/v1/courses/[course_id]/events
@@ -43,8 +44,9 @@ module Tyto
               envelope
             end
             { data: payload }.to_json
-          rescue StandardError
-            routing.halt 404, { message: 'Could not find events' }.to_json
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
 
           # POST api/v1/courses/[course_id]/events
@@ -75,13 +77,14 @@ module Tyto
             routing.halt(404, { message: 'Course not found' }.to_json) unless course_policy.can_view?
 
             loc = Location.where(course_id:, id: location_id).first
-            raise('Location not found') unless loc
+            routing.halt(404, { message: 'Location not found' }.to_json) unless loc
 
             envelope = JSON.parse(loc.to_json)
             envelope['policies'] = LocationPolicy.new(current_account, loc).summary
             envelope.to_json
           rescue StandardError => e
-            routing.halt 404, { message: e.message }.to_json
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
 
           # GET api/v1/courses/[course_id]/locations
@@ -94,8 +97,9 @@ module Tyto
               envelope
             end
             JSON.pretty_generate({ data: payload })
-          rescue StandardError
-            routing.halt 404, { message: 'Could not find locations' }.to_json
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
 
           # POST api/v1/courses/[course_id]/locations
@@ -173,8 +177,9 @@ module Tyto
               envelope
             end
             { data: payload }.to_json
-          rescue StandardError
-            routing.halt 404, { message: 'Could not find attendances' }.to_json
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
         end
 
@@ -239,21 +244,23 @@ module Tyto
               envelope
             end
             JSON.pretty_generate({ data: payload })
-          rescue StandardError
-            routing.halt 404, { message: 'Could not find enrollments' }.to_json
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
         end
 
         # GET api/v1/courses/[course_id]
         routing.get do
           routing.halt(404, { message: 'Course not found' }.to_json) unless course_policy.can_view?
-          raise('Course not found') unless course
+          routing.halt(404, { message: 'Course not found' }.to_json) unless course
 
           envelope = JSON.parse(course.to_json)
           envelope['policies'] = course_policy.summary
           envelope.to_json
         rescue StandardError => e
-          routing.halt 404, { message: e.message }.to_json
+          Api.logger.error "UNKNOWN ERROR: #{e.message}"
+          routing.halt 500, { message: 'Unknown server error' }.to_json
         end
       end
 
@@ -267,8 +274,9 @@ module Tyto
           envelope
         end
         JSON.pretty_generate({ data: payload })
-      rescue StandardError
-        routing.halt 404, { message: 'Could not find courses' }.to_json
+      rescue StandardError => e
+        Api.logger.error "UNKNOWN ERROR: #{e.message}"
+        routing.halt 500, { message: 'Unknown server error' }.to_json
       end
 
       # POST api/v1/courses
