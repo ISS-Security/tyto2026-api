@@ -8,6 +8,7 @@ module Tyto
   # Models a registered account
   class Account < Sequel::Model
     one_to_many :enrollments
+    one_to_many :sso_identities
     many_to_many :system_roles,
                  class: :'Tyto::Role',
                  join_table: :accounts_roles,
@@ -16,8 +17,9 @@ module Tyto
     many_to_many :courses, join_table: :enrollments
 
     # :nullify on a many_to_many removes the join-table rows (not the
-    # associated courses) — one bulk DELETE, keeps courses intact.
-    plugin :association_dependencies, courses: :nullify
+    # associated courses) — one bulk DELETE, keeps courses intact. SSO
+    # identities are owned rows, so they are destroyed with the account.
+    plugin :association_dependencies, courses: :nullify, sso_identities: :destroy
 
     plugin :whitelist_security
     set_allowed_columns :username, :email, :password, :avatar
@@ -63,7 +65,8 @@ module Tyto
           type: 'account',
           attributes: {
             username:,
-            email:
+            email:,
+            avatar:
           },
           include: {
             system_roles: system_roles.map(&:name),
