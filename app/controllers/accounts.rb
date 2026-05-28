@@ -63,19 +63,16 @@ module Tyto
         end
 
         # GET api/v1/accounts/[username]
-        # Self-view, or admin viewing any account.
+        # Self-view, or admin viewing any account. Returns an AuthorizedAccount
+        # envelope: the account plus a freshly-minted READ_ONLY auth token the
+        # owner can hand to a read-only deputy/3rd-party tool.
         routing.get do
-          account = Account.first(username:)
-          routing.halt(404, { message: 'Account not found' }.to_json) unless account
-
-          requester = Account.first(id: current_account_id)
-          policy = AccountPolicy.new(requester, account)
-          routing.halt(404, { message: 'Account not found' }.to_json) unless policy.can_view?
-
-          envelope = JSON.parse(account.to_json)
-          envelope['policies'] = policy.summary
-          envelope['capabilities'] = policy.capabilities if requester && requester.id == account.id
-          envelope.to_json
+          authorized = AuthorizeAccount.call(
+            auth: @auth, username:, auth_scope: AuthScope::READ_ONLY
+          )
+          { data: authorized }.to_json
+        rescue AuthorizeAccount::ForbiddenError
+          routing.halt 404, { message: 'Account not found' }.to_json
         rescue StandardError => e
           Api.logger.error "UNKNOWN ERROR: #{e.message}"
           routing.halt 500, { message: 'Unknown server error' }.to_json

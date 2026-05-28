@@ -5,21 +5,27 @@ require_relative '../spec_helper'
 describe 'Test Attendance Handling' do
   include Rack::Test::Methods
 
-  def live_event(course)
+  def live_event(course, location = @location)
     course.add_event(
       'name' => "Live #{rand(100_000)}",
       'start_at' => Time.now - 60,
-      'end_at' => Time.now + 3600
+      'end_at' => Time.now + 3600,
+      'location_id' => location&.id
     )
   end
 
-  def past_event(course)
+  def past_event(course, location = @location)
     course.add_event(
       'name' => "Past #{rand(100_000)}",
       'start_at' => Time.now - 7200,
-      'end_at' => Time.now - 3600
+      'end_at' => Time.now - 3600,
+      'location_id' => location&.id
     )
   end
+
+  # Coordinates relative to the seeded event location at (lon 121.0, lat 24.0).
+  def in_range = { longitude: '121.0', latitude: '24.0' }
+  def out_of_range = { longitude: '121.5', latitude: '24.5' }
 
   before do
     wipe_database
@@ -34,6 +40,10 @@ describe 'Test Attendance Handling' do
     @course = Tyto::CreateCourseForOwner.call(
       current_account_id: @owner.id, owner_id: @owner.id, course_data: DATA[:courses][0]
     )
+    @location = Tyto::CreateLocationForCourse.call(
+      current_account_id: @owner.id, course_id: @course.id,
+      location_data: { name: 'Room A', longitude: '121.0', latitude: '24.0' }
+    )
     @student = Tyto::Account.create(DATA[:accounts][1])
     Tyto::EnrollAccountInCourse.call(
       current_account_id: @owner.id, target_account_id: @student.id,
@@ -43,11 +53,11 @@ describe 'Test Attendance Handling' do
   end
 
   describe 'Student check-in' do
-    it 'HAPPY: enrolled student can check in to a live event' do
+    it 'HAPPY: enrolled student can check in to a live event in range' do
       event = live_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.to_json, auth_request_header(@student)
+           { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 201
       attendance = Tyto::Attendance.first
       _(attendance.account_id).must_equal @student.id
@@ -58,7 +68,7 @@ describe 'Test Attendance Handling' do
       event = live_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.to_json, auth_request_header(@outsider)
+           { event_id: event.id }.merge(in_range).to_json, auth_request_header(@outsider)
       _(last_response.status).must_equal 403
       _(Tyto::Attendance.count).must_equal 0
     end
@@ -67,7 +77,7 @@ describe 'Test Attendance Handling' do
       event = live_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.to_json, { 'CONTENT_TYPE' => 'application/json' }
+           { event_id: event.id }.merge(in_range).to_json, { 'CONTENT_TYPE' => 'application/json' }
       _(last_response.status).must_equal 401
     end
 
@@ -79,7 +89,7 @@ describe 'Test Attendance Handling' do
       )
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.to_json, auth_request_header(@student)
+           { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 409
     end
 
@@ -87,14 +97,56 @@ describe 'Test Attendance Handling' do
       event = past_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.to_json, auth_request_header(@student)
+           { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 422
     end
 
     it 'BAD: returns 404 for unknown event' do
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: 'nosuchevent' }.to_json, auth_request_header(@student)
+           { event_id: 'nosuchevent' }.merge(in_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 404
+    end
+  end
+
+  describe 'Geo-validated check-in' do
+    it 'BAD: returns 422 when checking in from outside the geofence' do
+      event = live_event(@course)
+
+      post "api/v1/courses/#{@course.id}/attendances",
+           { event_id: event.id }.merge(out_of_range).to_json, auth_request_header(@student)
+      _(last_response.status).must_equal 422
+      _(Tyto::Attendance.count).must_equal 0
+    end
+
+    it 'BAD: returns 400 when coordinates are missing' do
+      event = live_event(@course)
+
+      post "api/v1/courses/#{@course.id}/attendances",
+           { event_id: event.id }.to_json, auth_request_header(@student)
+      _(last_response.status).must_equal 400
+      _(Tyto::Attendance.count).must_equal 0
+    end
+
+    it 'HAPPY: an event without a location has no geofence to enforce' do
+      event = live_event(@course, nil)
+
+      post "api/v1/courses/#{@course.id}/attendances",
+           { event_id: event.id }.merge(out_of_range).to_json, auth_request_header(@student)
+      _(last_response.status).must_equal 201
+    end
+
+    it 'SECURITY: submitted coordinates are stored encrypted at rest' do
+      event = live_event(@course)
+
+      post "api/v1/courses/#{@course.id}/attendances",
+           { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
+      _(last_response.status).must_equal 201
+
+      row = Tyto::Attendance.first
+      raw = Tyto::Api.DB[:attendances].where(id: row.id).first
+      _(raw[:longitude_secure]).wont_be_nil
+      _(raw[:longitude_secure]).wont_equal '121.0' # ciphertext, not plaintext
+      _(row.longitude).must_equal '121.0'          # decrypts via the model
     end
   end
 
@@ -133,6 +185,30 @@ describe 'Test Attendance Handling' do
       event = live_event(@course)
       get "api/v1/courses/#{@course.id}/attendances/#{event.id}", nil, auth_header(@student)
       _(last_response.status).must_equal 403
+    end
+  end
+
+  describe 'Teaching staff: toggle attendance' do
+    it 'HAPPY: owner toggles a student attendance on then off' do
+      event = live_event(@course)
+
+      put "api/v1/courses/#{@course.id}/attendances/#{event.id}/#{@student.id}",
+          nil, auth_header(@owner)
+      _(last_response.status).must_equal 201
+      _(Tyto::Attendance.where(event_id: event.id, account_id: @student.id).count).must_equal 1
+
+      put "api/v1/courses/#{@course.id}/attendances/#{event.id}/#{@student.id}",
+          nil, auth_header(@owner)
+      _(last_response.status).must_equal 200
+      _(Tyto::Attendance.where(event_id: event.id, account_id: @student.id).count).must_equal 0
+    end
+
+    it 'BAD: a student cannot toggle attendance' do
+      event = live_event(@course)
+      put "api/v1/courses/#{@course.id}/attendances/#{event.id}/#{@student.id}",
+          nil, auth_header(@student)
+      _(last_response.status).must_equal 403
+      _(Tyto::Attendance.where(event_id: event.id, account_id: @student.id).count).must_equal 0
     end
   end
 

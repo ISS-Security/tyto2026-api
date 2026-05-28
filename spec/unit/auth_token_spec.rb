@@ -18,6 +18,23 @@ describe 'Test Tyto::AuthToken' do
     _(loaded.payload).must_equal payload
   end
 
+  it 'SECURITY: should default to a FULL scope and round-trip it' do
+    loaded = Tyto::AuthToken.load(Tyto::AuthToken.new(payload).to_s)
+    _(loaded.scope).must_equal Tyto::AuthScope::FULL
+  end
+
+  it 'SECURITY: should carry and round-trip an explicit READ_ONLY scope' do
+    token = Tyto::AuthToken.new(
+      payload, scope: Tyto::AuthScope.new(Tyto::AuthScope::READ_ONLY)
+    ).to_s
+    _(Tyto::AuthToken.load(token).scope).must_equal Tyto::AuthScope::READ_ONLY
+  end
+
+  it 'SECURITY: should raise ExpiredTokenError when reading scope of expired token' do
+    loaded = Tyto::AuthToken.load(Tyto::AuthToken.new(payload, -1).to_s)
+    _ { loaded.scope }.must_raise Tyto::AuthToken::ExpiredTokenError
+  end
+
   it 'SECURITY: should expose a freshness predicate on a new token' do
     auth_token = Tyto::AuthToken.new(payload)
     _(auth_token.fresh?).must_equal true

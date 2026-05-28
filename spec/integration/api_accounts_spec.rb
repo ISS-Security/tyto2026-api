@@ -18,11 +18,17 @@ describe 'Test Account Handling' do
       get "/api/v1/accounts/#{account.username}", nil, auth_header(account)
       _(last_response.status).must_equal 200
 
-      result = JSON.parse last_response.body
-      _(result['type']).must_equal 'account'
+      # Account detail now arrives inside an AuthorizedAccount envelope that
+      # also carries a freshly-minted READ_ONLY token.
+      data = JSON.parse(last_response.body)['data']
+      _(data['type']).must_equal 'authorized_account'
+      _(data['attributes']['auth_token']).wont_be_nil
 
-      attrs = result['attributes']
-      _(attrs['id']).must_be_nil # rolled back -- id no longer leaks in plaintext
+      account_env = data['attributes']['account']
+      _(account_env['type']).must_equal 'account'
+
+      attrs = account_env['attributes']
+      _(attrs['id']).must_be_nil # id never leaks in plaintext
       _(attrs['username']).must_equal account.username
       _(attrs['email']).must_equal account.email
       _(attrs['salt']).must_be_nil
@@ -32,8 +38,8 @@ describe 'Test Account Handling' do
       _(attrs['email_secure']).must_be_nil
       _(attrs['email_hash']).must_be_nil
 
-      _(result['include']['enrollments']).must_equal []
-      _(result['include']['system_roles']).must_equal []
+      _(account_env['include']['enrollments']).must_equal []
+      _(account_env['include']['system_roles']).must_equal []
     end
 
     it 'HAPPY: should embed system roles and enrollments in account details' do
@@ -50,7 +56,7 @@ describe 'Test Account Handling' do
       get "/api/v1/accounts/#{owner.username}", nil, auth_header(owner)
       _(last_response.status).must_equal 200
 
-      include_block = JSON.parse(last_response.body)['include']
+      include_block = JSON.parse(last_response.body)['data']['attributes']['account']['include']
       _(include_block['system_roles']).must_equal ['creator']
 
       enrollments = include_block['enrollments']
@@ -89,8 +95,21 @@ describe 'Test Account Handling' do
       get "/api/v1/accounts/#{target.username}", nil, auth_header(admin)
       _(last_response.status).must_equal 200
 
-      result = JSON.parse(last_response.body)
-      _(result['attributes']['username']).must_equal target.username
+      account_env = JSON.parse(last_response.body)['data']['attributes']['account']
+      _(account_env['attributes']['username']).must_equal target.username
+    end
+
+    it 'SECURITY: account detail token is scoped READ_ONLY, not full' do
+      account = Tyto::Account.create(DATA[:accounts][1])
+
+      get "/api/v1/accounts/#{account.username}", nil, auth_header(account)
+      _(last_response.status).must_equal 200
+
+      token = JSON.parse(last_response.body)['data']['attributes']['auth_token']
+      scope = Tyto::AuthToken.load(token).scope
+      _(scope).must_equal Tyto::AuthScope::READ_ONLY
+      _(Tyto::AuthScope.new(scope).can_write?('courses')).must_equal false
+      _(Tyto::AuthScope.new(scope).can_read?('courses')).must_equal true
     end
   end
 

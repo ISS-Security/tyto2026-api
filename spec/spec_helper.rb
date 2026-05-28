@@ -19,9 +19,15 @@ end
 # Builds an Authorization: Bearer header for the given account, mirroring
 # the encrypted-envelope shape AuthenticateAccount issues at login.
 def auth_header(account)
+  auth_header_with_scope(account, Tyto::AuthScope::FULL)
+end
+
+# Bearer header whose token carries an explicit AuthScope -- used to exercise
+# READ_ONLY ("API key") enforcement at the HTTP boundary.
+def auth_header_with_scope(account, scope)
   envelope = JSON.parse(account.to_json)
   envelope['attributes'] = envelope['attributes'].merge('id' => account.id)
-  token = Tyto::AuthToken.new(envelope).to_s
+  token = Tyto::AuthToken.new(envelope, scope: Tyto::AuthScope.new(scope)).to_s
   { 'HTTP_AUTHORIZATION' => "Bearer #{token}" }
 end
 

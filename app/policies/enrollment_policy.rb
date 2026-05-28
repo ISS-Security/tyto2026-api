@@ -5,19 +5,22 @@ module Tyto
   # course for course-wide checks (create / list); initialize with an
   # Enrollment row for per-row checks (leave).
   class EnrollmentPolicy
-    def initialize(account, target)
+    RESOURCE = 'enrollments'
+
+    def initialize(account, target, auth_scope: AuthScope.new)
       @account = account
       @target = target
+      @auth_scope = auth_scope
     end
 
     def can_manage?
-      return false unless @account && course
+      return false unless can_write? && @account && course
 
       CoursePolicy.new(@account, course).can_enroll?
     end
 
     def can_leave?
-      return false unless @account && enrollment_target
+      return false unless can_write? && @account && enrollment_target
 
       enrollment_target.account_id == @account.id &&
         enrollment_target.role &&
@@ -36,6 +39,8 @@ module Tyto
     end
 
     private
+
+    def can_write? = @auth_scope.can_write?(RESOURCE)
 
     def course
       return @target if @target.is_a?(Course)

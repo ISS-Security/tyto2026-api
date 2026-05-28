@@ -11,10 +11,11 @@ module Tyto
       current_account_id = @auth_account&.dig('attributes', 'id')
       routing.halt(401, { message: 'Authentication required' }.to_json) unless current_account_id
       current_account = Account.first(id: current_account_id)
+      auth_scope = @auth.scope
 
       routing.on String do |course_id|
         course = Course.first(id: course_id)
-        course_policy = CoursePolicy.new(current_account, course)
+        course_policy = CoursePolicy.new(current_account, course, auth_scope:)
 
         routing.on 'events' do
           @event_route = "#{@api_root}/courses/#{course_id}/events"
@@ -27,7 +28,7 @@ module Tyto
             routing.halt(404, { message: 'Event not found' }.to_json) unless event
 
             envelope = event.as_hash_for(current_account_id)
-            envelope[:policies] = EventPolicy.new(current_account, event).summary
+            envelope[:policies] = EventPolicy.new(current_account, event, auth_scope:).summary
             envelope.to_json
           rescue StandardError => e
             Api.logger.error "UNKNOWN ERROR: #{e.message}"
@@ -40,7 +41,7 @@ module Tyto
 
             payload = course.events.map do |e|
               envelope = e.as_hash_for(current_account_id)
-              envelope[:policies] = EventPolicy.new(current_account, e).index_summary
+              envelope[:policies] = EventPolicy.new(current_account, e, auth_scope:).index_summary
               envelope
             end
             { data: payload }.to_json
@@ -54,7 +55,7 @@ module Tyto
             body = HttpRequest.new(routing).body_data
             event_data = body.slice(:name, :start_at, :end_at, :location_id)
             new_event = CreateEventForCourse.call(
-              current_account_id:, course_id:, event_data:
+              current_account_id:, course_id:, event_data:, auth_scope:
             )
             raise 'Could not save event' unless new_event
 
@@ -80,7 +81,7 @@ module Tyto
             routing.halt(404, { message: 'Location not found' }.to_json) unless loc
 
             envelope = JSON.parse(loc.to_json)
-            envelope['policies'] = LocationPolicy.new(current_account, loc).summary
+            envelope['policies'] = LocationPolicy.new(current_account, loc, auth_scope:).summary
             envelope.to_json
           rescue StandardError => e
             Api.logger.error "UNKNOWN ERROR: #{e.message}"
@@ -93,7 +94,7 @@ module Tyto
 
             payload = course.locations.map do |loc|
               envelope = JSON.parse(loc.to_json)
-              envelope['policies'] = LocationPolicy.new(current_account, loc).index_summary
+              envelope['policies'] = LocationPolicy.new(current_account, loc, auth_scope:).index_summary
               envelope
             end
             JSON.pretty_generate({ data: payload })
@@ -107,7 +108,7 @@ module Tyto
             body = HttpRequest.new(routing).body_data
             location_data = body.slice(:name, :longitude, :latitude)
             new_loc = CreateLocationForCourse.call(
-              current_account_id:, course_id:, location_data:
+              current_account_id:, course_id:, location_data:, auth_scope:
             )
             raise 'Could not save location' unless new_loc
 
@@ -125,29 +126,63 @@ module Tyto
         routing.on 'attendances' do
           @attendance_route = "#{@api_root}/courses/#{course_id}/attendances"
 
-          # GET api/v1/courses/[course_id]/attendances/[event_id]
-          # Teaching-staff: every student's attendance for one event.
-          routing.get String do |event_id|
-            event = Event.first(course_id:, id: event_id)
-            routing.halt(404, { message: 'Event not found' }.to_json) unless event
+          routing.on String do |event_id|
+            # PUT api/v1/courses/[course_id]/attendances/[event_id]/[account_id]
+            # Teaching-staff: toggle a student's attendance for an event.
+            routing.put String do |account_id|
+              event = Event.first(course_id:, id: event_id)
+              routing.halt(404, { message: 'Event not found' }.to_json) unless event
 
-            unless AttendancePolicy.new(current_account, event).can_manage?
-              routing.halt 403, { message: 'Only teaching staff can view event attendances' }.to_json
+              unless AttendancePolicy.new(current_account, event, auth_scope:).can_manage?
+                routing.halt 403, { message: 'Only teaching staff can manage attendances' }.to_json
+              end
+
+              target = Account.first(id: account_id)
+              routing.halt(404, { message: 'Account not found' }.to_json) unless target
+
+              existing = Attendance.first(event_id:, account_id: target.id)
+              if existing
+                existing.destroy
+                { message: 'Attendance removed',
+                  data: { event_id:, account_id: target.id, present: false } }.to_json
+              else
+                attendance = Attendance.create(
+                  account_id: target.id, course_id:, event_id:, checked_in_at: Time.now
+                )
+                response.status = 201
+                { message: 'Attendance added', data: attendance }.to_json
+              end
+            rescue StandardError => e
+              Api.logger.error "UNKNOWN ERROR: #{e.message}"
+              routing.halt 500, { message: 'Unknown server error' }.to_json
             end
 
-            attendances = AttendancePolicy::EventScope.new(current_account, event).viewable
-            { data: attendances }.to_json
-          rescue StandardError => e
-            Api.logger.error "UNKNOWN ERROR: #{e.message}"
-            routing.halt 500, { message: 'Unknown server error' }.to_json
+            # GET api/v1/courses/[course_id]/attendances/[event_id]
+            # Teaching-staff: every student's attendance for one event.
+            routing.get do
+              event = Event.first(course_id:, id: event_id)
+              routing.halt(404, { message: 'Event not found' }.to_json) unless event
+
+              unless AttendancePolicy.new(current_account, event, auth_scope:).can_manage?
+                routing.halt 403, { message: 'Only teaching staff can view event attendances' }.to_json
+              end
+
+              attendances = AttendancePolicy::EventScope.new(current_account, event).viewable
+              { data: attendances }.to_json
+            rescue StandardError => e
+              Api.logger.error "UNKNOWN ERROR: #{e.message}"
+              routing.halt 500, { message: 'Unknown server error' }.to_json
+            end
           end
 
           # POST api/v1/courses/[course_id]/attendances
-          # Student check-in for an event.
+          # Student check-in: requires submitted coordinates (geo-validated).
           routing.post do
             body = HttpRequest.new(routing).body_data
             attendance = RecordAttendance.call(
-              current_account_id:, course_id:, event_id: body[:event_id]
+              current_account_id:, course_id:, event_id: body[:event_id],
+              coordinates: { longitude: body[:longitude], latitude: body[:latitude] },
+              auth_scope:
             )
 
             response.status = 201
@@ -157,7 +192,9 @@ module Tyto
             routing.halt 403, { message: e.message }.to_json
           rescue Tyto::RecordAttendance::UnknownEventError => e
             routing.halt 404, { message: e.message }.to_json
-          rescue Tyto::RecordAttendance::NotLiveError => e
+          rescue Tyto::RecordAttendance::InvalidCoordinatesError => e
+            routing.halt 400, { message: e.message }.to_json
+          rescue Tyto::RecordAttendance::NotLiveError, Tyto::RecordAttendance::OutOfRangeError => e
             routing.halt 422, { message: e.message }.to_json
           rescue Sequel::UniqueConstraintViolation
             routing.halt 409, { message: 'Attendance already recorded' }.to_json
@@ -173,7 +210,7 @@ module Tyto
 
             payload = Attendance.where(account_id: current_account_id, course_id:).all.map do |a|
               envelope = JSON.parse(a.to_json)
-              envelope['policies'] = AttendancePolicy.new(current_account, a).index_summary
+              envelope['policies'] = AttendancePolicy.new(current_account, a, auth_scope:).index_summary
               envelope
             end
             { data: payload }.to_json
@@ -189,7 +226,7 @@ module Tyto
           routing.on String do |segment|
             # DELETE api/v1/courses/[course_id]/enrollments/[enrollment_id]
             routing.delete do
-              unless EnrollmentPolicy.new(current_account, course).can_manage?
+              unless EnrollmentPolicy.new(current_account, course, auth_scope:).can_manage?
                 routing.halt 403, { message: 'Only teaching staff can remove enrollments' }.to_json
               end
 
@@ -215,7 +252,8 @@ module Tyto
                 current_account_id:,
                 target_account_id: target.id,
                 course_id:,
-                role_name: body[:role_name]
+                role_name: body[:role_name],
+                auth_scope:
               )
               raise 'Could not save enrollment' unless enrollment
 
@@ -240,7 +278,7 @@ module Tyto
 
             payload = course.enrollments.map do |e|
               envelope = JSON.parse(e.to_json)
-              envelope['policies'] = EnrollmentPolicy.new(current_account, e).index_summary
+              envelope['policies'] = EnrollmentPolicy.new(current_account, e, auth_scope:).index_summary
               envelope
             end
             JSON.pretty_generate({ data: payload })
@@ -270,7 +308,7 @@ module Tyto
         viewable = CoursePolicy::AccountScope.new(current_account).viewable
         payload = viewable.uniq.map do |c|
           envelope = JSON.parse(c.to_json)
-          envelope['policies'] = CoursePolicy.new(current_account, c).index_summary
+          envelope['policies'] = CoursePolicy.new(current_account, c, auth_scope:).index_summary
           envelope
         end
         JSON.pretty_generate({ data: payload })
@@ -284,7 +322,7 @@ module Tyto
         body = HttpRequest.new(routing).body_data
         course_data = body.slice(:name, :description)
         new_course = CreateCourseForOwner.call(
-          current_account_id:, owner_id: current_account_id, course_data:
+          current_account_id:, owner_id: current_account_id, course_data:, auth_scope:
         )
 
         response.status = 201

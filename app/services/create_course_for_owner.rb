@@ -9,10 +9,10 @@ module Tyto
     class UnknownCurrentAccountError < StandardError; end
     class NotAuthorizedError < StandardError; end
 
-    def self.call(current_account_id:, owner_id:, course_data:)
+    def self.call(current_account_id:, owner_id:, course_data:, auth_scope: AuthScope.new)
       Tyto::Api.DB.transaction do
         current_account = Account.first(id: current_account_id) or raise UnknownCurrentAccountError
-        unless AccountPolicy.new(current_account).can_create_course?
+        unless auth_scope.can_write?('courses') && AccountPolicy.new(current_account).can_create_course?
           raise NotAuthorizedError, 'Only creators or admins can create courses'
         end
 

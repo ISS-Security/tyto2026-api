@@ -30,14 +30,20 @@ module Tyto
         attributes: { account: account_envelope, auth_token: token_for(account_envelope, account.id) } }
     end
 
-    # Encrypted token carries the account envelope plus the internal `id`
-    # the API needs for inline role checks. The id stays out of the
-    # plaintext response -- only callers with MSG_KEY can read it back.
+    # Encrypted token carries only a minimal identity payload (the internal
+    # `id` the API needs for inline role checks, plus the username). The API
+    # re-derives roles/policies from the id on each request, so the token does
+    # not need the full envelope -- keeping it small. The id stays out of the
+    # plaintext response; only callers with MSG_KEY can read it back. Login
+    # issues a FULL-scope session token (write implies read); the account-detail
+    # endpoint mints a reduced READ_ONLY token for sharing.
     def self.token_for(envelope, account_id)
-      token_envelope = envelope.merge(
-        'attributes' => envelope['attributes'].merge('id' => account_id)
-      )
-      AuthToken.new(token_envelope).to_s
+      username = envelope.dig('attributes', 'username')
+      token_payload = {
+        'type' => 'account',
+        'attributes' => { 'id' => account_id, 'username' => username }
+      }
+      AuthToken.new(token_payload, scope: AuthScope.new).to_s
     end
   end
 end

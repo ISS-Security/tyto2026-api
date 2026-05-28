@@ -11,9 +11,29 @@ module Tyto
     many_to_one :course
 
     plugin :whitelist_security
-    set_allowed_columns :account_id, :event_id, :course_id, :checked_in_at
+    set_allowed_columns :account_id, :event_id, :course_id, :checked_in_at,
+                        :longitude, :latitude
 
     plugin :timestamps, update_on_create: true
+
+    # Submitted check-in coordinates are PII: stored encrypted at rest and
+    # never serialized back to clients. Nil-safe -- staff-recorded rows carry
+    # no coordinates.
+    def longitude
+      longitude_secure && SecureDB.decrypt(longitude_secure)
+    end
+
+    def longitude=(plaintext)
+      self.longitude_secure = plaintext && SecureDB.encrypt(plaintext.to_s)
+    end
+
+    def latitude
+      latitude_secure && SecureDB.decrypt(latitude_secure)
+    end
+
+    def latitude=(plaintext)
+      self.latitude_secure = plaintext && SecureDB.encrypt(plaintext.to_s)
+    end
 
     # rubocop:disable Metrics/MethodLength
     def to_json(options = {})

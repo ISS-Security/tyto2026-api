@@ -9,23 +9,29 @@ describe 'Policies envelope on read responses' do
 
   before { setup_policy_world }
 
+  # The account-detail endpoint now wraps the account envelope in an
+  # AuthorizedAccount: { data: { attributes: { account: <envelope>, auth_token } } }.
+  def account_envelope
+    JSON.parse(last_response.body)['data']['attributes']['account']
+  end
+
   describe 'self-Account envelope' do
     it 'HAPPY: carries both policies and capabilities' do
       get "/api/v1/accounts/#{@admin.username}", nil, auth_header(@admin)
       _(last_response.status).must_equal 200
 
-      result = JSON.parse(last_response.body)
-      _(result['policies']).wont_be_nil
-      _(result['capabilities']).wont_be_nil
-      _(result['capabilities']['is_admin']).must_equal true
-      _(result['capabilities']['can_create_course']).must_equal true
+      account = account_envelope
+      _(account['policies']).wont_be_nil
+      _(account['capabilities']).wont_be_nil
+      _(account['capabilities']['is_admin']).must_equal true
+      _(account['capabilities']['can_create_course']).must_equal true
     end
 
     it 'HAPPY: non-admin self envelope carries capabilities matching role' do
       get "/api/v1/accounts/#{@creator.username}", nil, auth_header(@creator)
-      result = JSON.parse(last_response.body)
-      _(result['capabilities']['is_admin']).must_equal false
-      _(result['capabilities']['can_create_course']).must_equal true
+      account = account_envelope
+      _(account['capabilities']['is_admin']).must_equal false
+      _(account['capabilities']['can_create_course']).must_equal true
     end
   end
 
@@ -34,9 +40,9 @@ describe 'Policies envelope on read responses' do
       get "/api/v1/accounts/#{@creator.username}", nil, auth_header(@admin)
       _(last_response.status).must_equal 200
 
-      result = JSON.parse(last_response.body)
-      _(result['policies']).wont_be_nil
-      _(result['capabilities']).must_be_nil # only on self envelope
+      account = account_envelope
+      _(account['policies']).wont_be_nil
+      _(account['capabilities']).must_be_nil # only on self envelope
     end
   end
 
