@@ -26,6 +26,9 @@ module Tyto
             event_id:,
             course_id:,
             checked_in_at:
+          },
+          include: {
+            account: { type: 'account', attributes: { username: account.username } }
           }
         }, options
       )

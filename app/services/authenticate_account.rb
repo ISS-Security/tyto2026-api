@@ -21,6 +21,11 @@ module Tyto
         account&.password?(credentials[:password])
 
       account_envelope = JSON.parse(account.to_json)
+      # Authentication implies self-view, so the response carries the
+      # actor-scoped capabilities the App reads via `current_account.admin?`
+      # etc. Without this the App's session has no `capabilities` key and
+      # every actor-scoped predicate silently returns false.
+      account_envelope['capabilities'] = AccountPolicy.new(account).capabilities
       { type: 'authenticated_account',
         attributes: { account: account_envelope, auth_token: token_for(account_envelope, account.id) } }
     end

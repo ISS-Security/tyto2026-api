@@ -50,6 +50,19 @@ describe 'Test Event Handling' do
     _(result['include']).wont_be_nil
   end
 
+  it 'CONTRACT: start_at / end_at serialize as ISO 8601 strings' do
+    event_data = DATA[:events][1]
+    course = Tyto::Course.first
+    event = course.add_event(event_data)
+
+    get "/api/v1/courses/#{course.id}/events/#{event.id}", nil, auth_header(@owner)
+    result = JSON.parse last_response.body
+
+    iso8601_re = /\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2}|Z)\z/
+    _(result['attributes']['start_at']).must_match iso8601_re
+    _(result['attributes']['end_at']).must_match iso8601_re
+  end
+
   it 'SAD: should return error if unknown event requested' do
     course = Tyto::Course.first
     get "/api/v1/courses/#{course.id}/events/foobar", nil, auth_header(@owner)

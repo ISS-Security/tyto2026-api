@@ -23,9 +23,9 @@ module Tyto
       begin
         @auth_account = http_request.authenticated_account
       rescue AuthToken::InvalidTokenError
-        routing.halt 403, { message: 'Invalid auth token' }.to_json
+        routing.halt 401, { message: 'Invalid auth token' }.to_json
       rescue AuthToken::ExpiredTokenError
-        routing.halt 403, { message: 'Expired auth token' }.to_json
+        routing.halt 401, { message: 'Expired auth token' }.to_json
       end
 
       routing.root do

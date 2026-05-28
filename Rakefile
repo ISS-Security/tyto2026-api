@@ -57,7 +57,7 @@ namespace :db do
   end
 
   task :load_models do # rubocop:disable Rake/Desc
-    require_app(%w[config models services])
+    require_app(%w[config models policies services])
   end
 
   desc 'Run migrations'

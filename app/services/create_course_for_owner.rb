@@ -9,12 +9,10 @@ module Tyto
     class UnknownCurrentAccountError < StandardError; end
     class NotAuthorizedError < StandardError; end
 
-    # NOTE: role-checking belongs in a Policy object (see branch 7-policies).
-    # It lives here for now to demonstrate the smell that motivates extracting it.
     def self.call(current_account_id:, owner_id:, course_data:)
       Tyto::Api.DB.transaction do
         current_account = Account.first(id: current_account_id) or raise UnknownCurrentAccountError
-        unless current_account.system_roles.map(&:name).intersect?(Role::COURSE_CREATORS)
+        unless AccountPolicy.new(current_account).can_create_course?
           raise NotAuthorizedError, 'Only creators or admins can create courses'
         end
 

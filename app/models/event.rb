@@ -36,8 +36,8 @@ module Tyto
           attributes: {
             id:,
             name:,
-            start_at:,
-            end_at:
+            start_at: start_at&.iso8601,
+            end_at: end_at&.iso8601
           },
           include: {
             course:,
@@ -57,8 +57,8 @@ module Tyto
         attributes: {
           id:,
           name:,
-          start_at:,
-          end_at:,
+          start_at: start_at&.iso8601,
+          end_at: end_at&.iso8601,
           my_attendance_id: attendance_id_for(account_id)
         },
         include: {

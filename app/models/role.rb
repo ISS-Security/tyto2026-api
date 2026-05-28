@@ -8,9 +8,8 @@ module Tyto
   class Role < Sequel::Model
     class UnknownRoleError < StandardError; end
 
-    # Role-name groupings used by services for ad-hoc role checks.
-    # Will be replaced by instance predicates (e.g. role.teaching?) when
-    # role logic moves into Policy objects in 7-policies.
+    # Role-name groupings kept for back-compat with ad-hoc role checks
+    # remaining outside Policy objects (one cleanup branch behind).
     TEACHING = %w[owner instructor staff].freeze
     COURSE_CREATORS = %w[creator admin].freeze
     SYSTEM = %w[admin creator member].freeze
@@ -24,6 +23,23 @@ module Tyto
     def self.id_for(name)
       first(name:)&.id or raise UnknownRoleError, name
     end
+
+    # System-role predicates
+    def admin?   = name == 'admin'
+    def creator? = name == 'creator'
+    def member?  = name == 'member'
+
+    # Course-role predicates
+    def owner?      = name == 'owner'
+    def instructor? = name == 'instructor'
+    def staff?      = name == 'staff'
+    def student?    = name == 'student'
+
+    # Groupings — what Policy objects actually ask
+    def teaching?       = TEACHING.include?(name)
+    def course_creator? = COURSE_CREATORS.include?(name)
+    def system?         = SYSTEM.include?(name)
+    def course_role?    = COURSE.include?(name)
 
     def to_json(options = {})
       JSON({ id:, name: }, options)

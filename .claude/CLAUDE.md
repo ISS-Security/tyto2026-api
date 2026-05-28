@@ -29,6 +29,14 @@ The repo follows a branch-by-branch progression where each numbered branch intro
 - **Console (Pry REPL with app loaded):** `rake console`
 - **Wipe database rows (keeps schema):** `rake db:delete`
 - **Drop local db file (refuses in production):** `rake db:drop`
+- **Seed dev database:** `rake db:seed`
+- **Full reseed (drop + migrate + seed):** `rake db:drop && rake db:migrate && rake db:seed`
+
+### Seeding notes
+
+- Static seed data lives in `db/seeds/*.yml` (accounts, courses, enrollments, locations, events).
+- `db/seeds/20260423_create_all.rb` also calls `create_live_now_event` which **computes `start_at`/`end_at` at seed time** (`Time.now - 1800` / `Time.now + 7200`) and attaches a "Live Demo Session" to a course that has a student enrolled. This guarantees the manual smoke test always finds a currently-live event for the check-in flow, no matter the wall clock — so `rake db:seed` is the right move whenever you need a fresh live event, not just when schema changes.
+- After any new `app/<folder>/` directory is added under autoload (e.g. `policies/`), make sure `Rakefile` `db:load_models` includes that folder in `require_app(%w[...])` — otherwise seed runs that depend on services calling into the new folder will `NameError`.
 
 ## Architecture
 

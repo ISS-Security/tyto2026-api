@@ -14,7 +14,7 @@ module Tyto
           AuthenticateAccount.call(credentials).to_json
         rescue AuthenticateAccount::UnauthorizedError
           Api.logger.warn('Authentication failed: invalid credentials')
-          routing.halt 403, { message: 'Invalid credentials' }.to_json
+          routing.halt 401, { message: 'Invalid credentials' }.to_json
         end
       end
 

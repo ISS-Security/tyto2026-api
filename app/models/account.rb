@@ -48,6 +48,14 @@ module Tyto
       enrollments_dataset.where(role_id: owner_role.id).map(&:course)
     end
 
+    def admin?
+      system_roles.any?(&:admin?)
+    end
+
+    def course_creator?
+      system_roles.any?(&:course_creator?)
+    end
+
     # rubocop:disable Metrics/MethodLength
     def to_json(options = {})
       JSON(

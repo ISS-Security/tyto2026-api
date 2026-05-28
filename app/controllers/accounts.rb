@@ -38,7 +38,10 @@ module Tyto
             # DELETE api/v1/accounts/[username]/system_roles/[role_name]
             routing.delete do
               current_account = Account.first(id: current_account_id)
-              unless current_account && current_account.system_roles.map(&:name).include?('admin')
+              target = Account.first(username:)
+              routing.halt(404, { message: 'Account not found' }.to_json) unless target
+
+              unless SystemRolePolicy.new(current_account, target).can_manage?
                 routing.halt 403, { message: 'Only admins can manage system roles' }.to_json
               end
 
@@ -46,8 +49,6 @@ module Tyto
               role = Role.first(name: role_name)
               routing.halt(400, { message: 'Unknown system role' }.to_json) unless role
 
-              target = Account.first(username:)
-              routing.halt(404, { message: 'Account not found' }.to_json) unless target
               unless target.system_roles_dataset.where(name: role_name).any?
                 routing.halt 404, { message: 'Role not assigned' }.to_json
               end
@@ -68,13 +69,16 @@ module Tyto
           routing.halt(404, { message: 'Account not found' }.to_json) unless account
 
           requester = Account.first(id: current_account_id)
-          is_self = requester && requester.id == account.id
-          is_admin = requester && requester.system_roles.map(&:name).include?('admin')
-          routing.halt(404, { message: 'Account not found' }.to_json) unless is_self || is_admin
+          policy = AccountPolicy.new(requester, account)
+          routing.halt(404, { message: 'Account not found' }.to_json) unless policy.can_view?
 
-          account.to_json
+          envelope = JSON.parse(account.to_json)
+          envelope['policies'] = policy.summary
+          envelope['capabilities'] = policy.capabilities if requester && requester.id == account.id
+          envelope.to_json
         rescue StandardError => e
-          routing.halt 404, { message: e.message }.to_json
+          Api.logger.error "UNKNOWN ERROR: #{e.message}"
+          routing.halt 500, { message: 'Unknown server error' }.to_json
         end
       end
 

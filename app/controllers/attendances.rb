@@ -15,8 +15,13 @@ module Tyto
       # caller is a student in the course, no existing attendance row).
       routing.is 'eligible' do
         routing.get do
-          events = ListEligibleEvents.call(current_account_id:)
-          payload = events.map { |e| e.as_hash_for(current_account_id) }
+          current_account = Account.first(id: current_account_id)
+          events = AttendancePolicy::EligibleScope.new(current_account).events
+          payload = events.map do |e|
+            envelope = e.as_hash_for(current_account_id)
+            envelope[:policies] = EventPolicy.new(current_account, e).index_summary
+            envelope
+          end
           { data: payload }.to_json
         rescue StandardError => e
           Api.logger.error "UNKNOWN ERROR: #{e.message}"

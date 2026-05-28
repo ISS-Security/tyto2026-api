@@ -10,33 +10,43 @@ module Tyto
       @course_route = "#{@api_root}/courses"
       current_account_id = @auth_account&.dig('attributes', 'id')
       routing.halt(401, { message: 'Authentication required' }.to_json) unless current_account_id
+      current_account = Account.first(id: current_account_id)
 
       routing.on String do |course_id|
+        course = Course.first(id: course_id)
+        course_policy = CoursePolicy.new(current_account, course)
+
         routing.on 'events' do
           @event_route = "#{@api_root}/courses/#{course_id}/events"
 
           # GET api/v1/courses/[course_id]/events/[event_id]
           routing.get String do |event_id|
-            unless Enrollment.first(account_id: current_account_id, course_id:)
-              routing.halt 404, { message: 'Course not found' }.to_json
-            end
+            routing.halt(404, { message: 'Course not found' }.to_json) unless course_policy.can_view?
 
             event = Event.where(course_id:, id: event_id).first
-            event ? event.as_hash_for(current_account_id).to_json : raise('Event not found')
+            routing.halt(404, { message: 'Event not found' }.to_json) unless event
+
+            envelope = event.as_hash_for(current_account_id)
+            envelope[:policies] = EventPolicy.new(current_account, event).summary
+            envelope.to_json
           rescue StandardError => e
-            routing.halt 404, { message: e.message }.to_json
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
 
           # GET api/v1/courses/[course_id]/events
           routing.get do
-            unless Enrollment.first(account_id: current_account_id, course_id:)
-              routing.halt 404, { message: 'Course not found' }.to_json
-            end
+            routing.halt(404, { message: 'Course not found' }.to_json) unless course_policy.can_view?
 
-            payload = Course.first(id: course_id).events.map { |e| e.as_hash_for(current_account_id) }
+            payload = course.events.map do |e|
+              envelope = e.as_hash_for(current_account_id)
+              envelope[:policies] = EventPolicy.new(current_account, e).index_summary
+              envelope
+            end
             { data: payload }.to_json
-          rescue StandardError
-            routing.halt 404, { message: 'Could not find events' }.to_json
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
 
           # POST api/v1/courses/[course_id]/events
@@ -64,26 +74,32 @@ module Tyto
 
           # GET api/v1/courses/[course_id]/locations/[location_id]
           routing.get String do |location_id|
-            unless Enrollment.first(account_id: current_account_id, course_id:)
-              routing.halt 404, { message: 'Course not found' }.to_json
-            end
+            routing.halt(404, { message: 'Course not found' }.to_json) unless course_policy.can_view?
 
             loc = Location.where(course_id:, id: location_id).first
-            loc ? loc.to_json : raise('Location not found')
+            routing.halt(404, { message: 'Location not found' }.to_json) unless loc
+
+            envelope = JSON.parse(loc.to_json)
+            envelope['policies'] = LocationPolicy.new(current_account, loc).summary
+            envelope.to_json
           rescue StandardError => e
-            routing.halt 404, { message: e.message }.to_json
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
 
           # GET api/v1/courses/[course_id]/locations
           routing.get do
-            unless Enrollment.first(account_id: current_account_id, course_id:)
-              routing.halt 404, { message: 'Course not found' }.to_json
-            end
+            routing.halt(404, { message: 'Course not found' }.to_json) unless course_policy.can_view?
 
-            output = { data: Course.first(id: course_id).locations }
-            JSON.pretty_generate(output)
-          rescue StandardError
-            routing.halt 404, { message: 'Could not find locations' }.to_json
+            payload = course.locations.map do |loc|
+              envelope = JSON.parse(loc.to_json)
+              envelope['policies'] = LocationPolicy.new(current_account, loc).index_summary
+              envelope
+            end
+            JSON.pretty_generate({ data: payload })
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
 
           # POST api/v1/courses/[course_id]/locations
@@ -112,13 +128,14 @@ module Tyto
           # GET api/v1/courses/[course_id]/attendances/[event_id]
           # Teaching-staff: every student's attendance for one event.
           routing.get String do |event_id|
-            caller_roles = Enrollment.where(account_id: current_account_id, course_id:)
-                                     .map { |e| e.role&.name }
-            unless caller_roles.intersect?(Role::TEACHING)
+            event = Event.first(course_id:, id: event_id)
+            routing.halt(404, { message: 'Event not found' }.to_json) unless event
+
+            unless AttendancePolicy.new(current_account, event).can_manage?
               routing.halt 403, { message: 'Only teaching staff can view event attendances' }.to_json
             end
 
-            attendances = Attendance.where(course_id:, event_id:).all
+            attendances = AttendancePolicy::EventScope.new(current_account, event).viewable
             { data: attendances }.to_json
           rescue StandardError => e
             Api.logger.error "UNKNOWN ERROR: #{e.message}"
@@ -152,14 +169,17 @@ module Tyto
           # GET api/v1/courses/[course_id]/attendances
           # Caller's own attendances for this course.
           routing.get do
-            unless Enrollment.first(account_id: current_account_id, course_id:)
-              routing.halt 404, { message: 'Course not found' }.to_json
-            end
+            routing.halt(404, { message: 'Course not found' }.to_json) unless course_policy.can_view?
 
-            output = { data: Attendance.where(account_id: current_account_id, course_id:).all }
-            output.to_json
-          rescue StandardError
-            routing.halt 404, { message: 'Could not find attendances' }.to_json
+            payload = Attendance.where(account_id: current_account_id, course_id:).all.map do |a|
+              envelope = JSON.parse(a.to_json)
+              envelope['policies'] = AttendancePolicy.new(current_account, a).index_summary
+              envelope
+            end
+            { data: payload }.to_json
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
         end
 
@@ -169,9 +189,7 @@ module Tyto
           routing.on String do |segment|
             # DELETE api/v1/courses/[course_id]/enrollments/[enrollment_id]
             routing.delete do
-              current_role_names = Enrollment.where(account_id: current_account_id, course_id:)
-                                             .map { |e| e.role&.name }
-              unless current_role_names.intersect?(Role::TEACHING)
+              unless EnrollmentPolicy.new(current_account, course).can_manage?
                 routing.halt 403, { message: 'Only teaching staff can remove enrollments' }.to_json
               end
 
@@ -218,38 +236,47 @@ module Tyto
 
           # GET api/v1/courses/[course_id]/enrollments
           routing.get do
-            unless Enrollment.first(account_id: current_account_id, course_id:)
-              routing.halt 404, { message: 'Course not found' }.to_json
-            end
+            routing.halt(404, { message: 'Course not found' }.to_json) unless course_policy.can_view?
 
-            output = { data: Course.first(id: course_id).enrollments }
-            JSON.pretty_generate(output)
-          rescue StandardError
-            routing.halt 404, { message: 'Could not find enrollments' }.to_json
+            payload = course.enrollments.map do |e|
+              envelope = JSON.parse(e.to_json)
+              envelope['policies'] = EnrollmentPolicy.new(current_account, e).index_summary
+              envelope
+            end
+            JSON.pretty_generate({ data: payload })
+          rescue StandardError => e
+            Api.logger.error "UNKNOWN ERROR: #{e.message}"
+            routing.halt 500, { message: 'Unknown server error' }.to_json
           end
         end
 
         # GET api/v1/courses/[course_id]
         routing.get do
-          unless Enrollment.first(account_id: current_account_id, course_id:)
-            routing.halt 404, { message: 'Course not found' }.to_json
-          end
+          routing.halt(404, { message: 'Course not found' }.to_json) unless course_policy.can_view?
+          routing.halt(404, { message: 'Course not found' }.to_json) unless course
 
-          course = Course.first(id: course_id)
-          course ? course.to_json : raise('Course not found')
+          envelope = JSON.parse(course.to_json)
+          envelope['policies'] = course_policy.summary
+          envelope.to_json
         rescue StandardError => e
-          routing.halt 404, { message: e.message }.to_json
+          Api.logger.error "UNKNOWN ERROR: #{e.message}"
+          routing.halt 500, { message: 'Unknown server error' }.to_json
         end
       end
 
       # GET api/v1/courses
       # Returns only courses the authenticated account is enrolled in.
       routing.get do
-        account = Account.first(id: current_account_id)
-        output = { data: account ? account.courses.uniq : [] }
-        JSON.pretty_generate(output)
-      rescue StandardError
-        routing.halt 404, { message: 'Could not find courses' }.to_json
+        viewable = CoursePolicy::AccountScope.new(current_account).viewable
+        payload = viewable.uniq.map do |c|
+          envelope = JSON.parse(c.to_json)
+          envelope['policies'] = CoursePolicy.new(current_account, c).index_summary
+          envelope
+        end
+        JSON.pretty_generate({ data: payload })
+      rescue StandardError => e
+        Api.logger.error "UNKNOWN ERROR: #{e.message}"
+        routing.halt 500, { message: 'Unknown server error' }.to_json
       end
 
       # POST api/v1/courses

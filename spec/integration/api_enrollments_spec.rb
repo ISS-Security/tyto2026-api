@@ -34,7 +34,7 @@ describe 'Test Enrollment Handling' do
       _(result['data'].count).must_equal 2
       _(result['data'].first['type']).must_equal 'enrollment'
       _(result['data'].first['attributes']['role']).wont_be_nil
-      _(result['data'].first['include']['account']['username']).wont_be_nil
+      _(result['data'].first['include']['account']['attributes']['username']).wont_be_nil
     end
 
     it 'SECURITY: enrollments list returns 401 when Authorization missing' do
