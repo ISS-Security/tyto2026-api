@@ -90,4 +90,58 @@ describe 'Test Authentication' do
       _(last_response.status).must_equal 500
     end
   end
+
+  describe 'SSO Authentication' do
+    before do
+      require 'webmock/minitest'
+      Tyto::Role.find_or_create(name: 'member')
+      stub_request(:get, Tyto::GoogleIdToken::JWKS_URI).to_return(
+        body: SsoTestKeys.jwks.to_json, status: 200,
+        headers: { 'content-type' => 'application/json' }
+      )
+    end
+
+    after { WebMock.reset! }
+
+    it 'HAPPY: a valid id_token returns an authorized account + FULL-scope token' do
+      post 'api/v1/auth/sso', { id_token: SsoTestKeys.mint_id_token }.to_json, @req_header
+
+      _(last_response.status).must_equal 200
+      data = JSON.parse(last_response.body)['data']
+      _(data['type']).must_equal 'authorized_account'
+
+      account = data['attributes']['account']['attributes']
+      _(account['email']).must_equal 'sso-user@example.com'
+      _(account['avatar']).must_equal SsoTestKeys.default_claims['picture']
+      _(account['id']).must_be_nil # internal id stays out of the plaintext envelope
+
+      token = data['attributes']['auth_token']
+      _(token).must_be_kind_of String
+      _(Tyto::AuthToken.load(token).scope).must_equal Tyto::AuthScope::FULL
+    end
+
+    it 'HAPPY: a repeat login with the same identity reuses the one account' do
+      2.times do
+        post 'api/v1/auth/sso', { id_token: SsoTestKeys.mint_id_token }.to_json, @req_header
+      end
+      _(last_response.status).must_equal 200
+      _(Tyto::SsoIdentity.where(provider: 'google').count).must_equal 1
+    end
+
+    it 'BAD: a malformed token is rejected with 401' do
+      post 'api/v1/auth/sso', { id_token: 'not-a-jwt' }.to_json, @req_header
+      _(last_response.status).must_equal 401
+    end
+
+    it 'BAD: a token with the wrong audience is rejected with 401' do
+      post 'api/v1/auth/sso',
+           { id_token: SsoTestKeys.mint_id_token('aud' => 'wrong-client') }.to_json, @req_header
+      _(last_response.status).must_equal 401
+    end
+
+    it 'BAD: a missing id_token is rejected with 400' do
+      post 'api/v1/auth/sso', {}.to_json, @req_header
+      _(last_response.status).must_equal 400
+    end
+  end
 end

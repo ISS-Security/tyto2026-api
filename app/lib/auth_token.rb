@@ -3,10 +3,13 @@
 require 'json'
 
 require_relative 'securable'
+require_relative 'auth_scope'
 
 module Tyto
-  # Time-limited encrypted token carrying an opaque payload hash.
-  # Build via `AuthToken.new(payload)`; parse via `AuthToken.load(token_string)`.
+  # Time-limited encrypted token carrying an opaque payload hash plus an
+  # AuthScope. Build via `AuthToken.new(payload, scope:)`; parse via
+  # `AuthToken.load(token_string)`. The scope is serialized as its string
+  # form (e.g. "*:read") and read back by `#scope`.
   class AuthToken
     extend Securable
 
@@ -38,20 +41,34 @@ module Tyto
       instance = allocate
       instance.instance_variable_set(:@token, token)
       instance.instance_variable_set(:@payload, contents['payload'])
+      instance.instance_variable_set(:@scope, contents['scope'])
       instance.instance_variable_set(:@expiration, contents['exp'])
       instance
     end
 
-    def initialize(payload, expiration = ONE_WEEK)
+    # `expiration` stays positional so existing callers keep working;
+    # `scope:` is a trailing keyword defaulting to a FULL-access scope.
+    def initialize(payload, expiration = ONE_WEEK, scope: AuthScope.new)
       @payload = payload
+      @scope = scope
       @expiration = (Time.now + expiration).to_i
-      @token = self.class.tokenize('payload' => @payload, 'exp' => @expiration)
+      @token = self.class.tokenize(
+        'payload' => @payload, 'scope' => @scope.to_s, 'exp' => @expiration
+      )
     end
 
     def payload
       raise ExpiredTokenError if expired?
 
       @payload
+    end
+
+    # The scope string carried by the token (e.g. "*:read"). On a loaded
+    # token this is the string persisted at mint time.
+    def scope
+      raise ExpiredTokenError if expired?
+
+      @scope
     end
 
     def expired?

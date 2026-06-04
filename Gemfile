@@ -16,6 +16,7 @@ gem 'figaro', '~>1.2'
 gem 'rake'
 
 # Security
+gem 'jwt', '~>3.1' # RS256 verification of Google OIDC id_tokens (OpenSSL-backed)
 gem 'rbnacl', '~>7.1'
 
 # HTTP client (for outbound API calls, e.g. Mailjet)

@@ -21,7 +21,8 @@ module Tyto
         routing.halt(403, { message: 'TLS/SSL Required' }.to_json)
 
       begin
-        @auth_account = http_request.authenticated_account
+        @auth = http_request.authorized_account
+        @auth_account = @auth&.account
       rescue AuthToken::InvalidTokenError
         routing.halt 401, { message: 'Invalid auth token' }.to_json
       rescue AuthToken::ExpiredTokenError

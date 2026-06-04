@@ -5,25 +5,28 @@ module Tyto
   # Initialize with an Event for can_record? checks; with an Attendance row for
   # can_view? / can_manage? checks.
   class AttendancePolicy
-    def initialize(account, target)
+    RESOURCE = 'attendances'
+
+    def initialize(account, target, auth_scope: AuthScope.new)
       @account = account
       @target = target
+      @auth_scope = auth_scope
     end
 
     def can_record?
-      return false unless event_target && course
+      return false unless can_write? && event_target && course
 
       CoursePolicy.new(@account, course).can_record_attendance? && event_target.live_now?
     end
 
     def can_view?
-      return false unless course
+      return false unless can_read? && course
 
       account_is_self_owner? || account_is_teaching_staff_in_course?
     end
 
     def can_manage?
-      return false unless course
+      return false unless can_write? && course
 
       account_is_teaching_staff_in_course?
     end
@@ -41,6 +44,9 @@ module Tyto
     end
 
     private
+
+    def can_read?  = @auth_scope.can_read?(RESOURCE)
+    def can_write? = @auth_scope.can_write?(RESOURCE)
 
     def event_target
       return @target if @target.is_a?(Event)

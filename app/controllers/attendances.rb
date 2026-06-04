@@ -9,6 +9,7 @@ module Tyto
     route('attendances') do |routing|
       current_account_id = @auth_account&.dig('attributes', 'id')
       routing.halt(401, { message: 'Authentication required' }.to_json) unless current_account_id
+      auth_scope = @auth.scope
 
       # GET api/v1/attendances/eligible
       # Returns events the caller can currently check in to (live now,
@@ -19,7 +20,7 @@ module Tyto
           events = AttendancePolicy::EligibleScope.new(current_account).events
           payload = events.map do |e|
             envelope = e.as_hash_for(current_account_id)
-            envelope[:policies] = EventPolicy.new(current_account, e).index_summary
+            envelope[:policies] = EventPolicy.new(current_account, e, auth_scope:).index_summary
             envelope
           end
           { data: payload }.to_json
