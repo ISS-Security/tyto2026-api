@@ -37,8 +37,8 @@ module Tyto
       raise KeypairError, 'No signing key configured' unless @signing_key
 
       signature = RbNaCl::SigningKey.new(@signing_key)
-                                    .sign(message.to_json)
-                                    .then { |sig| Base64.strict_encode64(sig) }
+        .sign(message.to_json)
+        .then { |sig| Base64.strict_encode64(sig) }
 
       { data: message, signature: signature }
     end

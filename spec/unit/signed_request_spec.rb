@@ -11,7 +11,7 @@ describe 'Test Tyto::SignedRequest' do
   # the same process keep signing with the test keypair from secrets.yml.
   before do
     @config_keys = %i[@verify_key @signing_key]
-                   .map { |var| Tyto::SignedRequest.instance_variable_get(var) }
+      .map { |var| Tyto::SignedRequest.instance_variable_get(var) }
   end
 
   after do

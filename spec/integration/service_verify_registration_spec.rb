@@ -18,8 +18,8 @@ describe 'Test Tyto::VerifyRegistration service' do
 
   it 'HAPPY: POSTs the Resend envelope and returns the registration' do
     stub = stub_request(:post, @mail_url)
-           .with(headers: { 'Authorization' => 'Bearer stub-key-not-used-in-tests' })
-           .to_return(status: 200, body: { id: 'fake-email-id' }.to_json)
+      .with(headers: { 'Authorization' => 'Bearer stub-key-not-used-in-tests' })
+      .to_return(status: 200, body: { id: 'fake-email-id' }.to_json)
 
     result = Tyto::VerifyRegistration.new(@registration).call
 

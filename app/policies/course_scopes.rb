@@ -16,8 +16,8 @@ module Tyto
         return Course.all if @account.admin?
 
         enrolled_course_ids = Enrollment
-                              .where(account_id: @account.id)
-                              .select_map(:course_id).uniq
+          .where(account_id: @account.id)
+          .select_map(:course_id).uniq
         return [] if enrolled_course_ids.empty?
 
         Course.where(id: enrolled_course_ids).all
