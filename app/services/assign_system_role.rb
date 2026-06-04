@@ -13,11 +13,11 @@ module Tyto
     end
 
     # rubocop:disable Metrics/AbcSize
-    def self.call(current_account_id:, target_username:, role_name:)
+    def self.call(current_account_id:, target_username:, role_name:, auth_scope: AuthScope.new)
       current_account = Account.first(id: current_account_id) or raise UnknownAccountError
       target = Account.first(username: target_username) or raise UnknownAccountError
 
-      unless SystemRolePolicy.new(current_account, target).can_manage?
+      unless SystemRolePolicy.new(current_account, target, auth_scope:).can_manage?
         raise NotAuthorizedError, 'Only admins can manage system roles'
       end
 

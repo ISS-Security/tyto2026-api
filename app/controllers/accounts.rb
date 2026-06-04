@@ -12,6 +12,7 @@ module Tyto
       routing.on String do |username|
         current_account_id = @auth_account&.dig('attributes', 'id')
         routing.halt(401, { message: 'Authentication required' }.to_json) unless current_account_id
+        auth_scope = @auth.scope
 
         routing.on 'system_roles' do
           routing.on String do |role_name|
@@ -19,7 +20,7 @@ module Tyto
             # Idempotent: 201 the first time, 200 on re-PUT.
             routing.put do
               result = AssignSystemRole.call(
-                current_account_id:, target_username: username, role_name:
+                current_account_id:, target_username: username, role_name:, auth_scope:
               )
 
               response.status = result.created? ? 201 : 200
@@ -41,7 +42,7 @@ module Tyto
               target = Account.first(username:)
               routing.halt(404, { message: 'Account not found' }.to_json) unless target
 
-              unless SystemRolePolicy.new(current_account, target).can_manage?
+              unless SystemRolePolicy.new(current_account, target, auth_scope:).can_manage?
                 routing.halt 403, { message: 'Only admins can manage system roles' }.to_json
               end
 
@@ -77,6 +78,25 @@ module Tyto
           Api.logger.error "UNKNOWN ERROR: #{e.message}"
           routing.halt 500, { message: 'Unknown server error' }.to_json
         end
+      end
+
+      # GET api/v1/accounts  (admin-only index of all accounts)
+      routing.get do
+        current_account_id = @auth_account&.dig('attributes', 'id')
+        routing.halt(401, { message: 'Authentication required' }.to_json) unless current_account_id
+
+        accounts = ListAccounts.call(
+          requester: Account.first(id: current_account_id),
+          auth_scope: @auth.scope,
+          role_filter: routing.params['role'],
+          sort: routing.params['sort']
+        )
+        { data: accounts }.to_json
+      rescue ListAccounts::ForbiddenError
+        routing.halt 403, { message: 'Admins only' }.to_json
+      rescue StandardError => e
+        Api.logger.error "UNKNOWN ERROR: #{e.message}"
+        routing.halt 500, { message: 'Unknown server error' }.to_json
       end
 
       # POST api/v1/accounts  (anonymous; account creation -- must be signed)
