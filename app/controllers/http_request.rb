@@ -18,6 +18,10 @@ module Tyto
       raw.empty? ? {} : JSON.parse(raw, symbolize_names: true)
     end
 
+    def signed_body_data
+      SignedRequest.parse(body_data)
+    end
+
     # Returns an AuthorizedAccount (decrypted account envelope + the token's
     # AuthScope) or nil if no Bearer token is present. Raises
     # AuthToken::InvalidTokenError if the header is present but unparseable.

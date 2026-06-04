@@ -79,21 +79,22 @@ module Tyto
         end
       end
 
-      # POST api/v1/accounts  (anonymous; account creation)
+      # POST api/v1/accounts  (anonymous; account creation -- must be signed)
       routing.post do
-        new_data = HttpRequest.new(routing).body_data
-        new_account = Account.new(new_data)
-        raise('Could not save account') unless new_account.save_changes
+        account_data = HttpRequest.new(routing).signed_body_data
+        new_account = Account.create(account_data)
 
         response.status = 201
         response['Location'] = "#{@account_route}/#{new_account.id}"
         { message: 'Account created', data: new_account }.to_json
       rescue Sequel::MassAssignmentRestriction
-        Api.logger.warn "MASS-ASSIGNMENT: #{new_data.keys}"
+        Api.logger.warn "MASS-ASSIGNMENT: #{account_data.keys}"
         routing.halt 400, { message: 'Illegal Attributes' }.to_json
-      rescue StandardError => e
-        Api.logger.error "UNKNOWN ERROR: #{e.message}"
-        routing.halt 500, { message: 'Unknown server error' }.to_json
+      rescue SignedRequest::VerificationError
+        routing.halt 403, { message: 'Must sign request' }.to_json
+      rescue StandardError
+        Api.logger.error 'Unknown error saving account'
+        routing.halt 500, { message: 'Error creating account' }.to_json
       end
     end
   end

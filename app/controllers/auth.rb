@@ -7,11 +7,17 @@ module Tyto
   # Web controller for Tyto API
   class Api < Roda
     route('auth') do |routing|
+      # All requests in this route require signed requests
+      begin
+        @request_data = HttpRequest.new(routing).signed_body_data
+      rescue SignedRequest::VerificationError
+        routing.halt 403, { message: 'Must sign request' }.to_json
+      end
+
       routing.is 'authenticate' do
         # POST api/v1/auth/authenticate
         routing.post do
-          credentials = HttpRequest.new(routing).body_data
-          AuthenticateAccount.call(credentials).to_json
+          AuthenticateAccount.call(@request_data).to_json
         rescue AuthenticateAccount::UnauthorizedError
           Api.logger.warn('Authentication failed: invalid credentials')
           routing.halt 401, { message: 'Invalid credentials' }.to_json
@@ -21,8 +27,7 @@ module Tyto
       routing.is 'register' do
         # POST api/v1/auth/register
         routing.post do
-          registration = HttpRequest.new(routing).body_data
-          VerifyRegistration.new(registration).call
+          VerifyRegistration.new(@request_data).call
           response.status = 202
           { message: 'Verification email sent' }.to_json
         rescue VerifyRegistration::InvalidRegistration => e
@@ -39,7 +44,7 @@ module Tyto
       routing.is 'sso' do
         # POST api/v1/auth/sso  -- body: { id_token: <Google-signed JWT> }
         routing.post do
-          id_token = HttpRequest.new(routing).body_data[:id_token]
+          id_token = @request_data[:id_token]
           routing.halt(400, { message: 'Missing id_token' }.to_json) if id_token.to_s.empty?
 
           { data: AuthenticateSso.call(id_token) }.to_json
