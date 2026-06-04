@@ -12,6 +12,11 @@ plugins:
   - rubocop-rake
   - rubocop-sequel
 
+# Method arguments continue one indent step (2 spaces) below the call line,
+# rather than aligning all the way out to the first argument
+Layout/ArgumentAlignment:
+  EnforcedStyle: with_fixed_indentation
+
 # Chained calls continue one indent step (2 spaces) below the previous line,
 # rather than aligning all the way out to the first call point
 Layout/MultilineMethodCallIndentation:

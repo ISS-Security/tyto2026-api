@@ -216,8 +216,8 @@ describe 'Test Account Handling' do
 
     it 'HAPPY: should be able to create new accounts' do
       post 'api/v1/accounts',
-           Tyto::SignedRequest.sign(@account_data).to_json,
-           @req_header
+        Tyto::SignedRequest.sign(@account_data).to_json,
+        @req_header
       _(last_response.status).must_equal 201
       _(last_response.headers['Location'].size).must_be :>, 0
 
@@ -234,8 +234,8 @@ describe 'Test Account Handling' do
       bad_data = @account_data.clone
       bad_data['created_at'] = '1900-01-01'
       post 'api/v1/accounts',
-           Tyto::SignedRequest.sign(bad_data).to_json,
-           @req_header
+        Tyto::SignedRequest.sign(bad_data).to_json,
+        @req_header
 
       _(last_response.status).must_equal 400
       _(last_response.headers['Location']).must_be_nil

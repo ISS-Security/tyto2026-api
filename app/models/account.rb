@@ -10,10 +10,10 @@ module Tyto
     one_to_many :enrollments
     one_to_many :sso_identities
     many_to_many :system_roles,
-                 class: :'Tyto::Role',
-                 join_table: :accounts_roles,
-                 left_key: :account_id,
-                 right_key: :role_id
+      class: :'Tyto::Role',
+      join_table: :accounts_roles,
+      left_key: :account_id,
+      right_key: :role_id
     many_to_many :courses, join_table: :enrollments
 
     # :nullify on a many_to_many removes the join-table rows (not the

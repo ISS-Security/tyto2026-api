@@ -111,7 +111,7 @@ describe 'Test Authentication' do
 
     it 'HAPPY: a valid id_token returns an authorized account + FULL-scope token' do
       post 'api/v1/auth/sso',
-           Tyto::SignedRequest.sign({ id_token: SsoTestKeys.mint_id_token }).to_json, @req_header
+        Tyto::SignedRequest.sign({ id_token: SsoTestKeys.mint_id_token }).to_json, @req_header
 
       _(last_response.status).must_equal 200
       data = JSON.parse(last_response.body)['data']
@@ -130,7 +130,7 @@ describe 'Test Authentication' do
     it 'HAPPY: a repeat login with the same identity reuses the one account' do
       2.times do
         post 'api/v1/auth/sso',
-             Tyto::SignedRequest.sign({ id_token: SsoTestKeys.mint_id_token }).to_json, @req_header
+          Tyto::SignedRequest.sign({ id_token: SsoTestKeys.mint_id_token }).to_json, @req_header
       end
       _(last_response.status).must_equal 200
       _(Tyto::SsoIdentity.where(provider: 'google').count).must_equal 1
@@ -143,9 +143,9 @@ describe 'Test Authentication' do
 
     it 'BAD: a token with the wrong audience is rejected with 401' do
       post 'api/v1/auth/sso',
-           Tyto::SignedRequest.sign(
-             { id_token: SsoTestKeys.mint_id_token('aud' => 'wrong-client') }
-           ).to_json, @req_header
+        Tyto::SignedRequest.sign(
+          { id_token: SsoTestKeys.mint_id_token('aud' => 'wrong-client') }
+        ).to_json, @req_header
       _(last_response.status).must_equal 401
     end
 

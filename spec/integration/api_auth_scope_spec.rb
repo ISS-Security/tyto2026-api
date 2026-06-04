@@ -32,14 +32,14 @@ describe 'AuthScope enforcement at the API boundary' do
 
     it 'BAD: cannot create a course (write denied by scope)' do
       post '/api/v1/courses', { name: 'Blocked', description: 'x' }.to_json,
-           read_only_header(@creator).merge('CONTENT_TYPE' => 'application/json')
+        read_only_header(@creator).merge('CONTENT_TYPE' => 'application/json')
       _(last_response.status).must_equal 403
     end
 
     it 'BAD: cannot create an event (write denied by scope)' do
       post "/api/v1/courses/#{@course.id}/events",
-           { name: 'E', start_at: Time.now, end_at: Time.now + 60, location_id: @location.id }.to_json,
-           read_only_header(@instructor).merge('CONTENT_TYPE' => 'application/json')
+        { name: 'E', start_at: Time.now, end_at: Time.now + 60, location_id: @location.id }.to_json,
+        read_only_header(@instructor).merge('CONTENT_TYPE' => 'application/json')
       _(last_response.status).must_equal 403
     end
   end
@@ -47,7 +47,7 @@ describe 'AuthScope enforcement at the API boundary' do
   describe 'FULL token (control)' do
     it 'HAPPY: can create a course' do
       post '/api/v1/courses', { name: 'OK', description: 'x' }.to_json,
-           auth_request_header(@creator)
+        auth_request_header(@creator)
       _(last_response.status).must_equal 201
     end
   end

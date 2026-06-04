@@ -22,7 +22,7 @@ module Tyto
     def to_json(options = {})
       JSON({ salt: Base64.strict_encode64(@salt),
              hash: Base64.strict_encode64(@digest) },
-           options)
+        options)
     end
 
     alias to_s to_json

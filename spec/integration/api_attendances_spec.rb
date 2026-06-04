@@ -57,7 +57,7 @@ describe 'Test Attendance Handling' do
       event = live_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
+        { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 201
       attendance = Tyto::Attendance.first
       _(attendance.account_id).must_equal @student.id
@@ -68,7 +68,7 @@ describe 'Test Attendance Handling' do
       event = live_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.merge(in_range).to_json, auth_request_header(@outsider)
+        { event_id: event.id }.merge(in_range).to_json, auth_request_header(@outsider)
       _(last_response.status).must_equal 403
       _(Tyto::Attendance.count).must_equal 0
     end
@@ -77,7 +77,7 @@ describe 'Test Attendance Handling' do
       event = live_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.merge(in_range).to_json, { 'CONTENT_TYPE' => 'application/json' }
+        { event_id: event.id }.merge(in_range).to_json, { 'CONTENT_TYPE' => 'application/json' }
       _(last_response.status).must_equal 401
     end
 
@@ -89,7 +89,7 @@ describe 'Test Attendance Handling' do
       )
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
+        { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 409
     end
 
@@ -97,13 +97,13 @@ describe 'Test Attendance Handling' do
       event = past_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
+        { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 422
     end
 
     it 'BAD: returns 404 for unknown event' do
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: 'nosuchevent' }.merge(in_range).to_json, auth_request_header(@student)
+        { event_id: 'nosuchevent' }.merge(in_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 404
     end
   end
@@ -113,7 +113,7 @@ describe 'Test Attendance Handling' do
       event = live_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.merge(out_of_range).to_json, auth_request_header(@student)
+        { event_id: event.id }.merge(out_of_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 422
       _(Tyto::Attendance.count).must_equal 0
     end
@@ -122,7 +122,7 @@ describe 'Test Attendance Handling' do
       event = live_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.to_json, auth_request_header(@student)
+        { event_id: event.id }.to_json, auth_request_header(@student)
       _(last_response.status).must_equal 400
       _(Tyto::Attendance.count).must_equal 0
     end
@@ -131,7 +131,7 @@ describe 'Test Attendance Handling' do
       event = live_event(@course, nil)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.merge(out_of_range).to_json, auth_request_header(@student)
+        { event_id: event.id }.merge(out_of_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 201
     end
 
@@ -139,7 +139,7 @@ describe 'Test Attendance Handling' do
       event = live_event(@course)
 
       post "api/v1/courses/#{@course.id}/attendances",
-           { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
+        { event_id: event.id }.merge(in_range).to_json, auth_request_header(@student)
       _(last_response.status).must_equal 201
 
       row = Tyto::Attendance.first
@@ -155,9 +155,9 @@ describe 'Test Attendance Handling' do
       event1 = live_event(@course)
       event2 = past_event(@course)
       Tyto::Attendance.create(account_id: @student.id, event_id: event1.id,
-                              course_id: @course.id, checked_in_at: Time.now)
+        course_id: @course.id, checked_in_at: Time.now)
       Tyto::Attendance.create(account_id: @student.id, event_id: event2.id,
-                              course_id: @course.id, checked_in_at: Time.now - 3600)
+        course_id: @course.id, checked_in_at: Time.now - 3600)
 
       get "api/v1/courses/#{@course.id}/attendances", nil, auth_header(@student)
       _(last_response.status).must_equal 200
@@ -174,7 +174,7 @@ describe 'Test Attendance Handling' do
     it 'HAPPY: owner can see all attendances for one event' do
       event = live_event(@course)
       Tyto::Attendance.create(account_id: @student.id, event_id: event.id,
-                              course_id: @course.id, checked_in_at: Time.now)
+        course_id: @course.id, checked_in_at: Time.now)
 
       get "api/v1/courses/#{@course.id}/attendances/#{event.id}", nil, auth_header(@owner)
       _(last_response.status).must_equal 200
@@ -193,12 +193,12 @@ describe 'Test Attendance Handling' do
       event = live_event(@course)
 
       put "api/v1/courses/#{@course.id}/attendances/#{event.id}/#{@student.id}",
-          nil, auth_header(@owner)
+        nil, auth_header(@owner)
       _(last_response.status).must_equal 201
       _(Tyto::Attendance.where(event_id: event.id, account_id: @student.id).count).must_equal 1
 
       put "api/v1/courses/#{@course.id}/attendances/#{event.id}/#{@student.id}",
-          nil, auth_header(@owner)
+        nil, auth_header(@owner)
       _(last_response.status).must_equal 200
       _(Tyto::Attendance.where(event_id: event.id, account_id: @student.id).count).must_equal 0
     end
@@ -206,7 +206,7 @@ describe 'Test Attendance Handling' do
     it 'BAD: a student cannot toggle attendance' do
       event = live_event(@course)
       put "api/v1/courses/#{@course.id}/attendances/#{event.id}/#{@student.id}",
-          nil, auth_header(@student)
+        nil, auth_header(@student)
       _(last_response.status).must_equal 403
       _(Tyto::Attendance.where(event_id: event.id, account_id: @student.id).count).must_equal 0
     end
@@ -228,7 +228,7 @@ describe 'Test Attendance Handling' do
     it 'HAPPY: filters out events the caller has already attended' do
       live = live_event(@course)
       Tyto::Attendance.create(account_id: @student.id, event_id: live.id,
-                              course_id: @course.id, checked_in_at: Time.now)
+        course_id: @course.id, checked_in_at: Time.now)
 
       get 'api/v1/attendances/eligible', nil, auth_header(@student)
       _(last_response.status).must_equal 200

@@ -91,7 +91,7 @@ describe 'Test Event Handling' do
 
     it 'HAPPY: should be able to create new events' do
       post "api/v1/courses/#{@course.id}/events",
-           @event_data.to_json, auth_request_header(@owner)
+        @event_data.to_json, auth_request_header(@owner)
       _(last_response.status).must_equal 201
       _(last_response.headers['Location'].size).must_be :>, 0
 
@@ -105,7 +105,7 @@ describe 'Test Event Handling' do
     it 'SECURITY: should silently drop unknown attributes from request body' do
       bad_data = @event_data.merge('created_at' => '1900-01-01')
       post "api/v1/courses/#{@course.id}/events",
-           bad_data.to_json, auth_request_header(@owner)
+        bad_data.to_json, auth_request_header(@owner)
 
       _(last_response.status).must_equal 201
       event = Tyto::Event.first
@@ -115,7 +115,7 @@ describe 'Test Event Handling' do
 
     it 'SECURITY: missing Authorization header returns 401' do
       post "api/v1/courses/#{@course.id}/events",
-           @event_data.to_json, { 'CONTENT_TYPE' => 'application/json' }
+        @event_data.to_json, { 'CONTENT_TYPE' => 'application/json' }
 
       _(last_response.status).must_equal 401
     end
@@ -124,7 +124,7 @@ describe 'Test Event Handling' do
       outsider = Tyto::Account.create(DATA[:accounts][1])
 
       post "api/v1/courses/#{@course.id}/events",
-           @event_data.to_json, auth_request_header(outsider)
+        @event_data.to_json, auth_request_header(outsider)
 
       _(last_response.status).must_equal 403
     end

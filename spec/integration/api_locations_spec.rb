@@ -78,7 +78,7 @@ describe 'Test Location Handling' do
 
     it 'HAPPY: should be able to create new locations' do
       post "api/v1/courses/#{@course.id}/locations",
-           @loc_data.to_json, auth_request_header(@owner)
+        @loc_data.to_json, auth_request_header(@owner)
       _(last_response.status).must_equal 201
       _(last_response.headers['Location'].size).must_be :>, 0
 
@@ -92,7 +92,7 @@ describe 'Test Location Handling' do
     it 'SECURITY: should silently drop unknown attributes from request body' do
       bad_data = @loc_data.merge('created_at' => '1900-01-01')
       post "api/v1/courses/#{@course.id}/locations",
-           bad_data.to_json, auth_request_header(@owner)
+        bad_data.to_json, auth_request_header(@owner)
 
       _(last_response.status).must_equal 201
       loc = Tyto::Location.first
@@ -102,7 +102,7 @@ describe 'Test Location Handling' do
 
     it 'SECURITY: missing Authorization header returns 401' do
       post "api/v1/courses/#{@course.id}/locations",
-           @loc_data.to_json, { 'CONTENT_TYPE' => 'application/json' }
+        @loc_data.to_json, { 'CONTENT_TYPE' => 'application/json' }
 
       _(last_response.status).must_equal 401
     end
@@ -111,7 +111,7 @@ describe 'Test Location Handling' do
       outsider = Tyto::Account.create(DATA[:accounts][1])
 
       post "api/v1/courses/#{@course.id}/locations",
-           @loc_data.to_json, auth_request_header(outsider)
+        @loc_data.to_json, auth_request_header(outsider)
 
       _(last_response.status).must_equal 403
     end
