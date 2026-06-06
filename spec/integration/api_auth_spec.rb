@@ -14,7 +14,7 @@ describe 'Test Authentication' do
 
   it 'HAPPY: should authenticate valid credentials' do
     creds = { username: @account_data['username'], password: @account_data['password'] }
-    post 'api/v1/auth/authenticate', creds.to_json, @req_header
+    post 'api/v1/auth/authenticate', Tyto::SignedRequest.sign(creds).to_json, @req_header
     _(last_response.status).must_equal 200
 
     result = JSON.parse last_response.body
@@ -33,7 +33,7 @@ describe 'Test Authentication' do
 
   it 'SECURITY: returned auth_token decrypts to an account payload' do
     creds = { username: @account_data['username'], password: @account_data['password'] }
-    post 'api/v1/auth/authenticate', creds.to_json, @req_header
+    post 'api/v1/auth/authenticate', Tyto::SignedRequest.sign(creds).to_json, @req_header
     token = JSON.parse(last_response.body)['attributes']['auth_token']
 
     payload = Tyto::AuthToken.load(token).payload
@@ -42,8 +42,8 @@ describe 'Test Authentication' do
   end
 
   it 'BAD: should reject invalid password' do
-    creds = { username: @account_data['username'], password: 'not_the_password' }
-    post 'api/v1/auth/authenticate', creds.to_json, @req_header
+    bad_creds = { username: @account_data['username'], password: 'not_the_password' }
+    post 'api/v1/auth/authenticate', Tyto::SignedRequest.sign(bad_creds).to_json, @req_header
     _(last_response.status).must_equal 401
 
     result = JSON.parse last_response.body
@@ -53,8 +53,14 @@ describe 'Test Authentication' do
 
   it 'BAD: should reject unknown username' do
     creds = { username: 'nosuchuser', password: 'anything' }
-    post 'api/v1/auth/authenticate', creds.to_json, @req_header
+    post 'api/v1/auth/authenticate', Tyto::SignedRequest.sign(creds).to_json, @req_header
     _(last_response.status).must_equal 401
+  end
+
+  it 'BAD SIGNED_REQUEST: should not accept unsigned authentication requests' do
+    creds = { username: @account_data['username'], password: @account_data['password'] }
+    post 'api/v1/auth/authenticate', creds.to_json, @req_header
+    _(last_response.status).must_equal 403
   end
 
   describe 'Registration verification' do
@@ -72,7 +78,7 @@ describe 'Test Authentication' do
 
     it 'HAPPY: returns 202 and triggers a Resend POST' do
       stub = stub_request(:post, @mail_url).to_return(status: 200)
-      post 'api/v1/auth/register', @registration.to_json, @req_header
+      post 'api/v1/auth/register', Tyto::SignedRequest.sign(@registration).to_json, @req_header
       _(last_response.status).must_equal 202
       assert_requested(stub)
     end
@@ -80,13 +86,13 @@ describe 'Test Authentication' do
     it 'BAD: returns 400 when email is already taken' do
       stub_request(:post, @mail_url).to_return(status: 200)
       registration = @registration.merge(email: @account_data['email'])
-      post 'api/v1/auth/register', registration.to_json, @req_header
+      post 'api/v1/auth/register', Tyto::SignedRequest.sign(registration).to_json, @req_header
       _(last_response.status).must_equal 400
     end
 
     it 'BAD: returns 500 when Resend rejects' do
       stub_request(:post, @mail_url).to_return(status: 503)
-      post 'api/v1/auth/register', @registration.to_json, @req_header
+      post 'api/v1/auth/register', Tyto::SignedRequest.sign(@registration).to_json, @req_header
       _(last_response.status).must_equal 500
     end
   end
@@ -104,7 +110,8 @@ describe 'Test Authentication' do
     after { WebMock.reset! }
 
     it 'HAPPY: a valid id_token returns an authorized account + FULL-scope token' do
-      post 'api/v1/auth/sso', { id_token: SsoTestKeys.mint_id_token }.to_json, @req_header
+      post 'api/v1/auth/sso',
+        Tyto::SignedRequest.sign({ id_token: SsoTestKeys.mint_id_token }).to_json, @req_header
 
       _(last_response.status).must_equal 200
       data = JSON.parse(last_response.body)['data']
@@ -122,25 +129,28 @@ describe 'Test Authentication' do
 
     it 'HAPPY: a repeat login with the same identity reuses the one account' do
       2.times do
-        post 'api/v1/auth/sso', { id_token: SsoTestKeys.mint_id_token }.to_json, @req_header
+        post 'api/v1/auth/sso',
+          Tyto::SignedRequest.sign({ id_token: SsoTestKeys.mint_id_token }).to_json, @req_header
       end
       _(last_response.status).must_equal 200
       _(Tyto::SsoIdentity.where(provider: 'google').count).must_equal 1
     end
 
     it 'BAD: a malformed token is rejected with 401' do
-      post 'api/v1/auth/sso', { id_token: 'not-a-jwt' }.to_json, @req_header
+      post 'api/v1/auth/sso', Tyto::SignedRequest.sign({ id_token: 'not-a-jwt' }).to_json, @req_header
       _(last_response.status).must_equal 401
     end
 
     it 'BAD: a token with the wrong audience is rejected with 401' do
       post 'api/v1/auth/sso',
-           { id_token: SsoTestKeys.mint_id_token('aud' => 'wrong-client') }.to_json, @req_header
+        Tyto::SignedRequest.sign(
+          { id_token: SsoTestKeys.mint_id_token('aud' => 'wrong-client') }
+        ).to_json, @req_header
       _(last_response.status).must_equal 401
     end
 
     it 'BAD: a missing id_token is rejected with 400' do
-      post 'api/v1/auth/sso', {}.to_json, @req_header
+      post 'api/v1/auth/sso', Tyto::SignedRequest.sign({}).to_json, @req_header
       _(last_response.status).must_equal 400
     end
   end

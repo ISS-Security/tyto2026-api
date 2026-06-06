@@ -34,8 +34,8 @@ module Tyto
 
     def send_email
       response = HTTP
-                 .auth("Bearer #{api_key}")
-                 .post(mail_url, json: mail_json)
+        .auth("Bearer #{api_key}")
+        .post(mail_url, json: mail_json)
       return if response.status < 300
 
       Api.logger.error("Resend error #{response.status}: #{response.body}")

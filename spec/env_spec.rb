@@ -14,4 +14,12 @@ describe 'Secret credentials not exposed' do
   it 'should not find hash lookup key' do
     _(Tyto::Api.config.HASH_KEY).must_be_nil
   end
+
+  it 'should not find request signing key' do
+    _(Tyto::Api.config.SIGNING_KEY).must_be_nil
+  end
+
+  it 'should not find request verify key' do
+    _(Tyto::Api.config.VERIFY_KEY).must_be_nil
+  end
 end

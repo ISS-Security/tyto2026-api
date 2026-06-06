@@ -82,7 +82,7 @@ describe 'Policies envelope on read responses' do
   describe 'Event envelope' do
     it 'HAPPY: detail response carries policies with can_record_attendance' do
       get "/api/v1/courses/#{@course.id}/events/#{@live_event.id}",
-          nil, auth_header(@student)
+        nil, auth_header(@student)
       _(last_response.status).must_equal 200
       result = JSON.parse(last_response.body)
       _(result[:policies] || result['policies']).wont_be_nil

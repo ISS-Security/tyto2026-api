@@ -12,7 +12,7 @@ module Tyto
 
     plugin :whitelist_security
     set_allowed_columns :account_id, :event_id, :course_id, :checked_in_at,
-                        :longitude, :latitude
+      :longitude, :latitude
 
     plugin :timestamps, update_on_create: true
 

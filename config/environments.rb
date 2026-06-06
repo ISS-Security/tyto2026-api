@@ -6,6 +6,7 @@ require 'logger'
 require 'sequel'
 require './app/lib/secure_db'
 require './app/lib/auth_token'
+require './app/lib/signed_request'
 
 module Tyto
   # Configuration for the API
@@ -30,6 +31,8 @@ module Tyto
       # Load crypto keys
       SecureDB.setup(ENV.delete('DB_KEY'), ENV.delete('HASH_KEY'))
       AuthToken.setup(ENV.delete('MSG_KEY'))
+      # Signing half is nil outside test: only clients hold a SIGNING_KEY
+      SignedRequest.setup(ENV.delete('VERIFY_KEY'), ENV.delete('SIGNING_KEY'))
 
       # Custom events logging
       LOGGER = Logger.new($stderr)

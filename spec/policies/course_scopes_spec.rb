@@ -37,7 +37,7 @@ describe 'CoursePolicy::AccountScope' do
           actual = Tyto::CoursePolicy.new(account, c).can_view?
           expected = viewable_ids.include?(c.id)
           _(actual).must_equal(expected,
-                               "Scope/policy disagree for #{label} on course #{c.id}")
+            "Scope/policy disagree for #{label} on course #{c.id}")
         end
       end
     end

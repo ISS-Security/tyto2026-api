@@ -12,6 +12,7 @@ module Tyto
       routing.on String do |username|
         current_account_id = @auth_account&.dig('attributes', 'id')
         routing.halt(401, { message: 'Authentication required' }.to_json) unless current_account_id
+        auth_scope = @auth.scope
 
         routing.on 'system_roles' do
           routing.on String do |role_name|
@@ -19,7 +20,7 @@ module Tyto
             # Idempotent: 201 the first time, 200 on re-PUT.
             routing.put do
               result = AssignSystemRole.call(
-                current_account_id:, target_username: username, role_name:
+                current_account_id:, target_username: username, role_name:, auth_scope:
               )
 
               response.status = result.created? ? 201 : 200
@@ -41,7 +42,7 @@ module Tyto
               target = Account.first(username:)
               routing.halt(404, { message: 'Account not found' }.to_json) unless target
 
-              unless SystemRolePolicy.new(current_account, target).can_manage?
+              unless SystemRolePolicy.new(current_account, target, auth_scope:).can_manage?
                 routing.halt 403, { message: 'Only admins can manage system roles' }.to_json
               end
 
@@ -79,21 +80,41 @@ module Tyto
         end
       end
 
-      # POST api/v1/accounts  (anonymous; account creation)
+      # GET api/v1/accounts  (admin-only index of all accounts)
+      routing.get do
+        current_account_id = @auth_account&.dig('attributes', 'id')
+        routing.halt(401, { message: 'Authentication required' }.to_json) unless current_account_id
+
+        accounts = ListAccounts.call(
+          requester: Account.first(id: current_account_id),
+          auth_scope: @auth.scope,
+          role_filter: routing.params['role'],
+          sort: routing.params['sort']
+        )
+        { data: accounts }.to_json
+      rescue ListAccounts::ForbiddenError
+        routing.halt 403, { message: 'Admins only' }.to_json
+      rescue StandardError => e
+        Api.logger.error "UNKNOWN ERROR: #{e.message}"
+        routing.halt 500, { message: 'Unknown server error' }.to_json
+      end
+
+      # POST api/v1/accounts  (anonymous; account creation -- must be signed)
       routing.post do
-        new_data = HttpRequest.new(routing).body_data
-        new_account = Account.new(new_data)
-        raise('Could not save account') unless new_account.save_changes
+        account_data = HttpRequest.new(routing).signed_body_data
+        new_account = Account.create(account_data)
 
         response.status = 201
         response['Location'] = "#{@account_route}/#{new_account.id}"
         { message: 'Account created', data: new_account }.to_json
       rescue Sequel::MassAssignmentRestriction
-        Api.logger.warn "MASS-ASSIGNMENT: #{new_data.keys}"
+        Api.logger.warn "MASS-ASSIGNMENT: #{account_data.keys}"
         routing.halt 400, { message: 'Illegal Attributes' }.to_json
-      rescue StandardError => e
-        Api.logger.error "UNKNOWN ERROR: #{e.message}"
-        routing.halt 500, { message: 'Unknown server error' }.to_json
+      rescue SignedRequest::VerificationError
+        routing.halt 403, { message: 'Must sign request' }.to_json
+      rescue StandardError
+        Api.logger.error 'Unknown error saving account'
+        routing.halt 500, { message: 'Error creating account' }.to_json
       end
     end
   end

@@ -12,9 +12,9 @@ module Tyto
     # :destroy instantiates each row so Sequel hooks and nested dependencies fire.
     # :delete bulk-removes enrollments without instantiating each row.
     plugin :association_dependencies,
-           events: :destroy,
-           locations: :destroy,
-           enrollments: :delete
+      events: :destroy,
+      locations: :destroy,
+      enrollments: :delete
 
     plugin :timestamps
     plugin :whitelist_security

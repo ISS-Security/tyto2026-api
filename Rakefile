@@ -159,21 +159,28 @@ desc 'Delete all data and reseed'
 task reseed: %i[db:reset_seeds db:seed]
 
 namespace :newkey do
+  task(:load_libs) { require_app('lib', config: false) } # rubocop:disable Rake/Desc
+
   desc 'Create sample cryptographic key for database'
-  task :db do
-    require_app('lib', config: false)
+  task :db => :load_libs do
     puts "DB_KEY: #{Tyto::SecureDB.generate_key}"
   end
 
   desc 'Create sample cryptographic key for HMAC lookup hashing'
-  task :hash do
-    require_app('lib', config: false)
+  task :hash => :load_libs do
     puts "HASH_KEY: #{Tyto::SecureDB.generate_key}"
   end
 
   desc 'Create sample cryptographic key for encrypted auth tokens'
-  task :msg do
-    require_app('lib', config: false)
+  task :msg => :load_libs do
     puts "MSG_KEY: #{Tyto::AuthToken.generate_key}"
+  end
+
+  desc 'Create sample sign/verify keypair for signed communication'
+  task :signing => :load_libs do
+    keypair = Tyto::SignedRequest.generate_keypair
+
+    puts "SIGNING_KEY: #{keypair[:signing_key]}"
+    puts " VERIFY_KEY: #{keypair[:verify_key]}"
   end
 end

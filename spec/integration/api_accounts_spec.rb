@@ -113,13 +113,111 @@ describe 'Test Account Handling' do
     end
   end
 
+  describe 'Accounts Index' do
+    before do
+      %w[admin creator member owner instructor staff student].each do |role_name|
+        Tyto::Role.find_or_create(name: role_name)
+      end
+
+      @admin = Tyto::Account.create(DATA[:accounts][0])
+      @admin.add_system_role(Tyto::Role.first(name: 'admin'))
+
+      @creator = Tyto::Account.create(DATA[:accounts][1])
+      @creator.add_system_role(Tyto::Role.first(name: 'creator'))
+
+      @member = Tyto::Account.create(DATA[:accounts][2])
+      @member.add_system_role(Tyto::Role.first(name: 'member'))
+
+      @roleless = Tyto::Account.create(DATA[:accounts][3])
+    end
+
+    it 'SECURITY: missing Authorization returns 401' do
+      get '/api/v1/accounts'
+      _(last_response.status).must_equal 401
+    end
+
+    it 'BAD: non-admin caller gets 403' do
+      get '/api/v1/accounts', nil, auth_header(@member)
+      _(last_response.status).must_equal 403
+    end
+
+    it 'HAPPY: admin gets all accounts with their system roles' do
+      get '/api/v1/accounts', nil, auth_header(@admin)
+      _(last_response.status).must_equal 200
+
+      data = JSON.parse(last_response.body)['data']
+      _(data.size).must_equal 4
+
+      by_username = data.to_h { |row| [row['attributes']['username'], row] }
+      _(by_username[@admin.username]['include']['system_roles']).must_equal ['admin']
+      _(by_username[@creator.username]['include']['system_roles']).must_equal ['creator']
+      _(by_username[@roleless.username]['include']['system_roles']).must_equal []
+
+      row = by_username[@member.username]
+      _(row['type']).must_equal 'account'
+      _(row['attributes']['id']).must_be_nil # internal id never leaks
+      _(row['policies']['can_view']).must_equal true
+      _(row['policies']['can_assign_role']).must_equal true
+    end
+
+    it 'HAPPY: ?role= filters to accounts holding that system role' do
+      get '/api/v1/accounts?role=creator', nil, auth_header(@admin)
+      _(last_response.status).must_equal 200
+
+      data = JSON.parse(last_response.body)['data']
+      _(data.map { |row| row['attributes']['username'] }).must_equal [@creator.username]
+    end
+
+    it 'HAPPY: ?role=none selects accounts with zero system roles' do
+      get '/api/v1/accounts?role=none', nil, auth_header(@admin)
+      _(last_response.status).must_equal 200
+
+      data = JSON.parse(last_response.body)['data']
+      _(data.map { |row| row['attributes']['username'] }).must_equal [@roleless.username]
+    end
+
+    it 'HAPPY: ?sort=username orders accounts alphabetically' do
+      get '/api/v1/accounts?sort=username', nil, auth_header(@admin)
+      _(last_response.status).must_equal 200
+
+      usernames = JSON.parse(last_response.body)['data'].map { |row| row['attributes']['username'] }
+      _(usernames).must_equal usernames.sort
+    end
+
+    it 'HAPPY: ?sort=role groups accounts by primary system role' do
+      # A second admin created *last* must still sort into the admin bucket
+      late_admin = Tyto::Account.create(DATA[:accounts][4])
+      late_admin.add_system_role(Tyto::Role.first(name: 'admin'))
+
+      get '/api/v1/accounts?sort=role', nil, auth_header(@admin)
+      _(last_response.status).must_equal 200
+
+      usernames = JSON.parse(last_response.body)['data'].map { |row| row['attributes']['username'] }
+      admins = [@admin.username, late_admin.username].sort # username tie-break inside a bucket
+      expected = admins + [@creator, @member, @roleless].map(&:username)
+      _(usernames).must_equal expected
+    end
+
+    it 'HAPPY: admin READ_ONLY token can list accounts' do
+      get '/api/v1/accounts', nil, auth_header_with_scope(@admin, Tyto::AuthScope::READ_ONLY)
+      _(last_response.status).must_equal 200
+
+      data = JSON.parse(last_response.body)['data']
+      _(data.size).must_equal 4
+      # ...but its per-row policies stay read-only
+      _(data.first['policies']['can_assign_role']).must_equal false
+    end
+  end
+
   describe 'Account Creation' do
     before do
       @account_data = DATA[:accounts][1]
     end
 
     it 'HAPPY: should be able to create new accounts' do
-      post 'api/v1/accounts', @account_data.to_json, @req_header
+      post 'api/v1/accounts',
+        Tyto::SignedRequest.sign(@account_data).to_json,
+        @req_header
       _(last_response.status).must_equal 201
       _(last_response.headers['Location'].size).must_be :>, 0
 
@@ -132,12 +230,20 @@ describe 'Test Account Handling' do
       _(account.password?('not_really_the_password')).must_equal false
     end
 
-    it 'BAD: should not create account with illegal attributes' do
+    it 'BAD MASS_ASSIGNMENT: should not accept illegal attributes' do
       bad_data = @account_data.clone
       bad_data['created_at'] = '1900-01-01'
-      post 'api/v1/accounts', bad_data.to_json, @req_header
+      post 'api/v1/accounts',
+        Tyto::SignedRequest.sign(bad_data).to_json,
+        @req_header
 
       _(last_response.status).must_equal 400
+      _(last_response.headers['Location']).must_be_nil
+    end
+
+    it 'BAD SIGNED_REQUEST: should not accept unsigned requests' do
+      post 'api/v1/accounts', @account_data.to_json, @req_header
+      _(last_response.status).must_equal 403
       _(last_response.headers['Location']).must_be_nil
     end
   end
@@ -248,6 +354,28 @@ describe 'Test Account Handling' do
         auth_header(@admin)
       )
       _(last_response.status).must_equal 404
+    end
+
+    it 'SECURITY: READ_ONLY admin token cannot PUT a system role' do
+      put(
+        "/api/v1/accounts/#{@target.username}/system_roles/creator",
+        nil,
+        auth_header_with_scope(@admin, Tyto::AuthScope::READ_ONLY)
+      )
+      _(last_response.status).must_equal 403
+      _(@target.reload.system_roles).must_be_empty
+    end
+
+    it 'SECURITY: READ_ONLY admin token cannot DELETE a system role' do
+      @target.add_system_role(Tyto::Role.first(name: 'creator'))
+
+      delete(
+        "/api/v1/accounts/#{@target.username}/system_roles/creator",
+        nil,
+        auth_header_with_scope(@admin, Tyto::AuthScope::READ_ONLY)
+      )
+      _(last_response.status).must_equal 403
+      _(@target.reload.system_roles.map(&:name)).must_include 'creator'
     end
 
     it 'SECURITY: missing Authorization returns 401 on PUT' do

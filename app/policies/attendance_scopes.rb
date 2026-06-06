@@ -40,13 +40,13 @@ module Tyto
         return [] unless student_role
 
         student_course_ids = Enrollment
-                             .where(account_id: @account.id, role_id: student_role.id)
-                             .select_map(:course_id)
+          .where(account_id: @account.id, role_id: student_role.id)
+          .select_map(:course_id)
         return [] if student_course_ids.empty?
 
         already_attended_event_ids = Attendance
-                                     .where(account_id: @account.id)
-                                     .select_map(:event_id)
+          .where(account_id: @account.id)
+          .select_map(:event_id)
 
         events = Event.live_now.where(course_id: student_course_ids)
         events = events.exclude(id: already_attended_event_ids) if already_attended_event_ids.any?

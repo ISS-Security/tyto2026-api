@@ -5,14 +5,15 @@ module Tyto
   # half ("can the viewer manage system roles at all?") to AccountPolicy
   # and layers per-target constraints on top.
   class SystemRolePolicy
-    def initialize(viewer, target_account)
+    def initialize(viewer, target_account, auth_scope: AuthScope.new)
       @viewer = viewer
       @target_account = target_account
+      @auth_scope = auth_scope
     end
 
     def can_manage?
       return false unless @viewer && @target_account
-      return false unless AccountPolicy.new(@viewer).can_manage_system_roles?
+      return false unless AccountPolicy.new(@viewer, auth_scope: @auth_scope).can_manage_system_roles?
 
       target_constraints_pass?
     end

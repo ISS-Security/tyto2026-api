@@ -64,8 +64,8 @@ module Tyto
       return [] unless @account && @course
 
       @enrollment_roles ||= Enrollment
-                            .where(account_id: @account.id, course_id: @course.id)
-                            .filter_map(&:role)
+        .where(account_id: @account.id, course_id: @course.id)
+        .filter_map(&:role)
     end
   end
 end
